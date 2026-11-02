@@ -1,0 +1,31 @@
+// 사진 API 의 촬영월 값("202005", "5", "05월" 등)에서 월(1~12)만 뽑기
+export function monthOf(v) {
+  const m = String(v ?? '').match(/(\d{1,2})\s*월?$/)
+  const n = m ? Number(m[1]) : 0
+  return n >= 1 && n <= 12 ? n : 0
+}
+
+const SEASON = { 3: '봄', 4: '봄', 5: '봄', 6: '여름', 7: '여름', 8: '여름', 9: '가을', 10: '가을', 11: '가을', 12: '겨울', 1: '겨울', 2: '겨울' }
+export const seasonOf = (month) => SEASON[month] ?? ''
+
+export const distLabel = (m) => (m == null ? '' : m < 1000 ? `${m}m` : `${(m / 1000).toFixed(1)}km`)
+
+// 사진 상세 페이지 주소 — 새로고침해도 다시 조회할 수 있게 제목·촬영지를 쿼리로 담는다
+export function photoLink(p) {
+  const q = new URLSearchParams({ title: p.title ?? '', loc: p.location ?? '' })
+  return `/photo/${encodeURIComponent(p.id || 'x')}?${q}`
+}
+
+export const TYPE_META = {
+  12: { label: '관광지', color: '#ff8a1f', icon: 'camera' },
+  14: { label: '문화시설', color: '#7b61ff', icon: 'bank' },
+  15: { label: '축제·행사', color: '#ff4d8d', icon: 'balloon' },
+  28: { label: '레포츠', color: '#1fa2ff', icon: 'bicycle' },
+  32: { label: '숙박', color: '#8d6e63', icon: 'house-heart' },
+  38: { label: '쇼핑', color: '#e5b700', icon: 'bag' },
+  39: { label: '음식점', color: '#2fb36b', icon: 'cup-hot' },
+}
+export const typeMeta = (t) => TYPE_META[Number(t)] ?? { label: '명소', color: '#ff8a1f', icon: 'geo-alt' }
+
+export const SKY_ICON = { 맑음: 'brightness-high', 구름많음: 'cloud-sun', 흐림: 'cloud' }
+export const skyIcon = (w) => (w?.rainy ? 'cloud-rain' : (SKY_ICON[w?.sky] ?? 'cloud-sun'))
