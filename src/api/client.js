@@ -22,9 +22,9 @@ export const fetchPhotoInfo = ({ id, title, location }) => get('/api/photo', { i
 export const fetchNearby = ({ lat, lng, radius = 3000, type, exclude }) => get('/api/nearby', { lat, lng, radius, type, exclude }) // find_nearby
 export const fetchWeather = ({ place, lat, lng } = {}) => get('/api/weather', { place, lat, lng })
 export const fetchSpots = (type = '12', page, rows) => get('/api/spots', { type, page, rows })
-export const fetchAccess = ({ contentId, name }) => get('/api/access', { contentId, name })
-export const fetchRelated = ({ name, addr }) => get('/api/related', { name, addr })
-export const fetchCrowd = ({ name, addr }) => get('/api/crowd', { name, addr })
+export const fetchAccess = ({ contentId, name }) => get('/api/place', { kind: 'access', contentId, name })
+export const fetchRelated = ({ name, addr }) => get('/api/place', { kind: 'related', name, addr })
+export const fetchCrowd = ({ name, addr }) => get('/api/place', { kind: 'crowd', name, addr })
 
 // 제주데이터허브: kind = trail | accident | busstop | busroute | lodging
 export const fetchHub = (kind, params = {}) => get('/api/hub', { kind, ...params })
