@@ -4,13 +4,14 @@
 //    - 버스노선정보 BusRouteInfoInqireService / 버스위치정보 BusLcInfoInqireService
 //  · 한국공항공사 항공기 운항 스케줄 (국내선) — 예정 시각이며 지연·결항은 반영되지 않는다
 import { callApi, toList } from './lib.js'
+import { cached } from './cache.js'
 
 const TAGO = 'https://apis.data.go.kr/1613000'
 const CITY = 39 // 제주도
 const FLIGHT = 'https://apis.data.go.kr/B551178/flight-schedule/dom'
 
 // ── 버스 ────────────────────────────────────────────────────
-export async function searchStops({ name = '', limit = 20 } = {}) {
+async function loadStops({ name = '', limit = 20 } = {}) {
   const body = await callApi(`${TAGO}/BusSttnInfoInqireService/getSttnNoList`, { _type: 'json', cityCode: CITY, nodeNm: name, numOfRows: limit, pageNo: 1 })
   return toList(body).map((s) => ({ id: s.nodeid, name: s.nodenm, no: s.nodeno, lat: Number(s.gpslati), lng: Number(s.gpslong) }))
 }
@@ -48,7 +49,7 @@ const hhmm = (v) => (/^\d{4}$/.test(String(v ?? '')) ? `${String(v).slice(0, 2)}
 const kstToday = () => new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10).replaceAll('-', '')
 
 // direction: 'arr'(제주 도착) | 'dep'(제주 출발) / city: 상대 공항 코드(GMP·PUS 등, 선택) / date: YYYYMMDD(기본 오늘)
-export async function getFlights({ direction = 'arr', city = '', date = '' } = {}) {
+async function loadFlights({ direction = 'arr', city = '', date = '' } = {}) {
   const day = /^\d{8}$/.test(date) ? date : kstToday()
   const base = { type: 'json', schDate: day, numOfRows: 100 }
   const q = direction === 'dep'
@@ -73,3 +74,7 @@ export async function getFlights({ direction = 'arr', city = '', date = '' } = {
     .sort((a, b) => a.time.localeCompare(b.time))
   return { date: day, direction, count: flights.length, flights }
 }
+
+// 정류소 목록은 1시간, 공항 스케줄은 10분 캐시 (도착·위치는 실시간이라 캐시하지 않는다)
+export const searchStops = (args = {}) => cached(`stops:${args.name ?? ''}:${args.limit ?? ''}`, 60 * 60e3, () => loadStops(args))
+export const getFlights = (args = {}) => cached(`flights:${args.direction ?? ''}:${args.city ?? ''}:${args.date ?? ''}`, 10 * 60e3, () => loadFlights(args))

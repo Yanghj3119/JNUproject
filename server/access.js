@@ -20,6 +20,7 @@ export async function checkAccessibility({ contentId = '', place_name = '' } = {
     if (!p) return { title: place_name, items: [], note: '장소를 찾지 못했어요' }
     id = p.id; title = p.title
   }
+  if (!/^\d+$/.test(String(id))) return { title, contentId: id, items: [], note: '등록된 무장애 정보가 없어요' } // 관광공사 장소만 조회 가능
   const body = await callApi(`${BASE}/detailWithTour2`, tourParams({ contentId: id }))
   const d = toList(body)[0]
   if (!d) return { title, contentId: id, items: [], note: '등록된 무장애 정보가 없어요' }

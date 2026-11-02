@@ -4,6 +4,8 @@
 //  · API 고유 ID 는 각 데이터 상세 페이지의 요청 URL 에 있는 값
 // 주의: 응답 래핑 구조는 호출해 보고 확인 필요 → unwrap() 이 흔한 형태를 모두 처리하고, /status 에서 점검
 
+import { cached } from './cache.js'
+
 const BASE = 'https://open.jejudatahub.net/api/proxy'
 
 const API = {
@@ -90,7 +92,11 @@ const PLACE_KINDS = {
 }
 export const PLACE_KIND_NAMES = Object.fromEntries(Object.entries(PLACE_KINDS).map(([k, v]) => [v.label, k]))
 
-export async function listHubPlaces({ kind, name = '', limit = 1000 }) {
+export function listHubPlaces(args) {
+  return cached(`hub:${args.kind}:${args.name ?? ''}:${args.limit ?? ''}`, 30 * 60e3, () => loadHubPlaces(args))
+}
+
+async function loadHubPlaces({ kind, name = '', limit = 1000 }) {
   if (!PLACE_KINDS[kind]) throw new Error(`알 수 없는 종류: ${kind}`)
   const rows = await callHub(kind, { placeName: name }, 1000)
   return clip(rows, limit)
