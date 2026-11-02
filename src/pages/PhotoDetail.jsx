@@ -3,7 +3,6 @@ import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { Col, Container, Row } from 'react-bootstrap'
 import { fetchAccess, fetchNearby, fetchPhotoInfo, fetchRelated } from '../api/client'
 import { useAsync } from '../lib/useAsync'
-import { monthOf } from '../lib/format'
 import { useAppStore } from '../store/useAppStore'
 import PlaceCard from '../components/PlaceCard'
 import Status from '../components/Status'
@@ -28,13 +27,10 @@ export default function PhotoDetail() {
   const gallery = info.data?.gallery?.length ? info.data.gallery : photo ? [photo] : []
   const shown = gallery[picked] ?? photo
   const heroImage = shown?.image || sp.get('img') // 공모전 수상작 등은 목록에서 넘어온 이미지를 사용
-  const rawMonth = photo?.month || sp.get('m')
 
   const nearby = useAsync(() => (place ? fetchNearby({ lat: place.lat, lng: place.lng, exclude: place.id }) : null), [place?.id])
   const access = useAsync(() => (place ? fetchAccess({ contentId: place.id }) : null), [place?.id])
   const related = useAsync(() => (place ? fetchRelated({ name: place.title, addr: place.addr }) : null), [place?.id])
-
-  const month = monthOf(rawMonth)
 
   if (info.loading || info.error) {
     return <Container className="py-4"><Status loading={info.loading} error={info.error} /></Container>
@@ -67,10 +63,6 @@ export default function PhotoDetail() {
 
           <div className="jp-panel mb-3">
             <div className="mb-2"><i className="bi bi-geo-alt text-jp me-2" /><strong>촬영지</strong> {photo?.location || place?.title || '정보 없음'}</div>
-            <div className="mb-2">
-              <i className="bi bi-calendar3 text-jp me-2" /><strong>촬영 시기</strong>{' '}
-              {month ? `${month}월` : '정보 없음'}
-            </div>
             {photo?.photographer && <div className="small text-muted"><i className="bi bi-person me-2" />촬영 {photo.photographer}</div>}
           </div>
 

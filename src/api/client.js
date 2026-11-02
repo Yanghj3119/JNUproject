@@ -26,7 +26,7 @@ export const fetchAccess = ({ contentId, name }) => get('/api/access', { content
 export const fetchRelated = ({ name, addr }) => get('/api/related', { name, addr })
 export const fetchCrowd = ({ name, addr }) => get('/api/crowd', { name, addr })
 
-// 제주데이터허브: kind = beach | trail | accident | busstop | busroute | lodging
+// 제주데이터허브: kind = trail | accident | busstop | busroute | lodging
 export const fetchHub = (kind, params = {}) => get('/api/hub', { kind, ...params })
 
 // 연결 점검 · 에이전트

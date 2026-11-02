@@ -53,7 +53,14 @@ export default function Login() {
 
   return (
     <div className="container">
-      <div className="jp-auth">
+      <div className="jp-auth jp-auth-split">
+        <div className="jp-auth-visual" style={{ backgroundImage: 'url(/images/jeju-haenyeo.jpg)' }}>
+          <div>
+            <div className="jp-eyebrow mb-2" style={{ color: '#bfdbfe' }}>제주픽</div>
+            <div className="fs-4 fw-bold lh-sm">내가 담은 제주,<br />다시 꺼내 보세요.</div>
+          </div>
+        </div>
+        <div className="jp-auth-form">
         <div className="jp-eyebrow mb-2">내 여행 보관함</div>
         <h1 className="h4 fw-bold mb-1">{mode === 'in' ? '로그인' : '회원가입'}</h1>
         <p className="text-muted small mb-4">로그인하면 위시리스트와 AI가 만든 코스를 언제든 다시 볼 수 있어요.</p>
@@ -90,6 +97,7 @@ export default function Login() {
             {busy ? '처리 중…' : mode === 'in' ? '로그인' : '가입하기'}
           </button>
         </form>
+        </div>
       </div>
     </div>
   )

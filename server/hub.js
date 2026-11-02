@@ -14,7 +14,6 @@ const API = {
   busStop: 'DD11ab6a6t11D16baaa1a2tD26ata161',     // 버스 정류소 기본 정보     (stationName)
   busRoute: 'aaatD6D1atta1611at1t6a1b6at1b11a',    // 버스 노선 기본 정보       (startStationId)
   trail: '888tDaaDaat91181b7Db79811181tDaa',       // 한라산 둘레길 코스별 정보 (courseName, startPoint, endPoint)
-  beach: 'aa7t3a3tabDtbD38a87ta8ttttt388ab',       // 제주 해수욕장 수질 조사   (baseYear, beachName, measureItem)
   accident: '36333aD6tba8aa1D6D1aaab8D1aa6ba8',    // 교통사고 다발지역 정보    (sidoSigungu)
 }
 
@@ -78,14 +77,6 @@ export async function searchLodging({ name = '', type = '', status = '영업/정
   return clip(rows, limit).map((l) => ({
     name: l.companyName, type: l.bizSmallType, rooms: num(l.roomCount) || undefined,
     status: l.openStatus, addr: l.addressDoro || l.addressJibun,
-  }))
-}
-
-export async function getBeachQuality({ beach = '', year = '', item = '', limit = 60 } = {}) {
-  const rows = await callHub('beach', { beachName: beach, baseYear: year, measureItem: item })
-  return clip(rows, limit).map((b) => ({
-    year: b.baseYear, beach: b.beachName, kind: b.beachType, phase: b.measureType,
-    item: b.measureItem, point: b.measurePoint, value: b.measureValue, suitable: b.suitabilityFlag,
   }))
 }
 

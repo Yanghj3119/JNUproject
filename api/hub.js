@@ -1,9 +1,8 @@
 import { route } from '../server/http.js'
-import { searchLodging, getBeachQuality, getTrails, getAccidentSpots, searchBusStops, getBusRoutes } from '../server/hub.js'
+import { searchLodging, getTrails, getAccidentSpots, searchBusStops, getBusRoutes } from '../server/hub.js'
 
-// /api/hub?kind=beach|trail|accident|busstop|busroute|lodging&...
+// /api/hub?kind=trail|accident|busstop|busroute|lodging&...
 const KINDS = {
-  beach: (q) => getBeachQuality({ beach: q.beach, year: q.year, item: q.item }),
   trail: (q) => getTrails({ course: q.course }),
   accident: (q) => getAccidentSpots({ sigungu: q.sigungu }),
   busstop: (q) => searchBusStops({ name: q.name }),

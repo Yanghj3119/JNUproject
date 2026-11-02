@@ -5,13 +5,13 @@ import { getWeather } from './weather.js'
 import { checkAccessibility } from './access.js'
 import { getRelated } from './related.js'
 import { getCrowd } from './crowd.js'
-import { listHubPlaces, PLACE_KIND_NAMES, searchLodging, getBeachQuality, getTrails, getAccidentSpots, searchBusStops } from './hub.js'
+import { listHubPlaces, PLACE_KIND_NAMES, searchLodging, getTrails, getAccidentSpots, searchBusStops } from './hub.js'
 
 // ① 도구 설명서: Claude 는 이 설명만 보고 "어떤 도구를 언제 쓸지" 결정한다
 export const tools = [
   {
     name: 'search_photos',
-    description: '키워드로 제주 관광 사진을 검색한다. 사진 제목·촬영지·촬영월·사진 URL을 돌려준다. 어떤 곳이 있는지 둘러볼 때 먼저 쓴다.',
+    description: '키워드로 제주 관광 사진을 검색한다. 사진 제목·촬영지·사진 URL을 돌려준다. 어떤 곳이 있는지 둘러볼 때 먼저 쓴다.',
     input_schema: {
       type: 'object',
       properties: {
@@ -107,16 +107,6 @@ export const tools = [
     },
   },
   {
-    name: 'get_beach_water_quality',
-    description: '제주 해수욕장의 수질 조사 결과(대장균·장구균, 적합 여부)를 조회한다. 해수욕·물놀이 질문에 쓴다.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        beach: { type: 'string', description: '해수욕장명 (곽지, 금능, 김녕, 사계, 삼양, 세화, 소금막, 쇠소깍, 신양섭지, 월정, 이호테우, 중문색달, 평대, 표선, 하도, 함덕, 협재, 화순금모래)' },
-      },
-    },
-  },
-  {
     name: 'get_hallasan_trails',
     description: '한라산 둘레길 코스(코스명·거리 km·시점·종점)를 조회한다. 걷기·트레킹 여행 질문에 쓴다.',
     input_schema: { type: 'object', properties: { course: { type: 'string', description: '코스명 (선택)' } } },
@@ -168,12 +158,12 @@ async function withCoords({ place_name, lat, lng }) {
 export const runTool = {
   search_photos: async ({ keyword = '', limit = 6 }) =>
     (await searchPhotos({ keyword, rows: Math.min(Number(limit) || 6, 12) }))
-      .map(({ title, location, month, photographer, image }) => ({ title, location, month, photographer, image })),
+      .map(({ title, location, photographer, image }) => ({ title, location, photographer, image })),
 
   get_photo_info: async ({ title = '', location = '' }) => {
     const { photo, place } = await getPhotoInfo({ title, location })
     return {
-      photo: { title: photo.title, location: photo.location, month: photo.month, photographer: photo.photographer },
+      photo: { title: photo.title, location: photo.location, photographer: photo.photographer },
       place: place && { name: place.title, addr: place.addr, lat: place.lat, lng: place.lng, overview: place.overview?.slice(0, 300) },
     }
   },
@@ -202,7 +192,6 @@ export const runTool = {
     return list.slice(0, 8).map(({ title, addr, lat, lng, km }) => ({ title, addr, lat, lng, km_from_base: km }))
   },
   search_lodging: async ({ name, type }) => (await searchLodging({ name, type, limit: 10 })),
-  get_beach_water_quality: async ({ beach }) => getBeachQuality({ beach, limit: 12 }),
   get_hallasan_trails: async ({ course }) => getTrails({ course, limit: 12 }),
   get_traffic_accident_spots: async ({ sigungu }) =>
     (await getAccidentSpots({ sigungu, limit: 8 })).map(({ lat: _la, lng: _ln, ...a }) => a),

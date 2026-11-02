@@ -13,40 +13,36 @@ const PROMPTS = [
   '비 오는 날 서귀포에서 갈 만한 곳은?',
   '휠체어로 편하게 갈 수 있는 명소 추천해줘',
   '사람 적은 날 가기 좋은 오름 알려줘',
-  '유채꽃 사진 찍힌 곳은 언제 가면 좋아?',
+  '유채꽃을 볼 수 있는 곳과 근처 코스를 알려줘',
 ]
 
 // 히어로 배경 (public/images, Pixabay 무료 이미지)
 const HERO = [
   { src: '/images/jeju-beach.jpg', pos: '50% 60%' },
+  { src: '/images/jeju-muhly.jpg', pos: '50% 65%' },
   { src: '/images/jeju-lighthouse.jpg', pos: '50% 55%' },
+  { src: '/images/jeju-night.jpg', pos: '50% 70%' },
   { src: '/images/jeju-canola.jpg', pos: '50% 70%' },
 ]
 
 // "오늘은 어디로?" — 카드를 누르면 해당 주제로 AI 가이드에게 바로 질문
 const THEMES = [
-  {
-    img: '/images/jeju-canola.jpg', tag: '봄 · 꽃', title: '유채꽃과 검은 현무암 해안',
-    prompt: '유채꽃 사진 찍힌 곳은 어디고, 언제 가야 해? 근처 코스도 알려줘',
-  },
-  {
-    img: '/images/jeju-beach.jpg', tag: '해변 · 바다', title: '에메랄드빛 해변 하루',
-    prompt: '아이와 함께 갈 만한 해변을 추천해줘. 해수욕장 수질도 같이 확인해줘',
-  },
-  {
-    img: '/images/jeju-lighthouse.jpg', tag: '항구 · 드라이브', title: '붉은 등대와 바다 산책',
-    prompt: '등대와 바다 풍경을 볼 수 있는 해안 반나절 코스를 만들어줘. 일몰 시각도 알려줘',
-  },
+  { img: '/images/jeju-canola.jpg', tag: '꽃 · 해안', title: '유채꽃과 검은 현무암 해안', prompt: '유채꽃을 볼 수 있는 곳을 알려주고 근처 코스도 만들어줘' },
+  { img: '/images/jeju-muhly.jpg', tag: '오름 · 들판', title: '핑크뮬리가 번지는 오름 들판', prompt: '핑크뮬리와 오름 풍경을 볼 수 있는 곳을 알려주고 코스를 만들어줘' },
+  { img: '/images/jeju-chairs.jpg', tag: '해변 · 휴식', title: '하얀 모래 위의 느린 하루', prompt: '아이와 함께 쉬어 가기 좋은 해변을 추천해줘. 근처 갈 곳도 알려줘' },
+  { img: '/images/jeju-lighthouse.jpg', tag: '항구 · 산책', title: '붉은 등대와 바다 산책', prompt: '등대와 바다 풍경을 볼 수 있는 해안 반나절 코스를 만들어줘. 일몰 시각도 알려줘' },
+  { img: '/images/jeju-night.jpg', tag: '밤하늘 · 별', title: '별이 쏟아지는 제주의 밤', prompt: '별을 보기 좋은 한적한 곳을 알려줘. 날씨와 혼잡도도 확인해줘' },
+  { img: '/images/jeju-haenyeo.jpg', tag: '해녀 · 돌문화', title: '해녀와 돌담, 제주의 삶', prompt: '해녀 문화와 돌문화를 느낄 수 있는 곳을 코스로 만들어줘' },
 ]
 
-// AI 가이드가 실제로 호출하는 도구 = 공공데이터 API
+// AI 가이드가 실제로 호출하는 도구 = 공공데이터 API — 카드를 누르면 그 도구를 쓰는 질문으로 이동
 const TOOLS = [
-  { icon: 'images', name: '사진 검색·촬영지', src: '한국관광공사 관광사진 · 공모전 수상작' },
-  { icon: 'signpost-split', name: '주변 명소·연관 관광지', src: '한국관광공사 국문 관광정보 · 연관 관광지' },
-  { icon: 'cloud-sun', name: '날씨·일출·일몰', src: '기상청 단기예보 · 한국천문연구원' },
-  { icon: 'people', name: '혼잡도 예측', src: '한국관광공사 관광지 집중률' },
-  { icon: 'water', name: '해수욕장 수질·둘레길', src: '제주데이터허브' },
-  { icon: 'signpost', name: '코스·경로 만들기', src: '장소 좌표와 구간 거리 계산' },
+  { icon: 'images', name: '사진 검색·촬영지', src: '한국관광공사 관광사진 · 공모전 수상작', prompt: '오름 사진을 보여주고 어디에서 찍은 건지 알려줘' },
+  { icon: 'signpost-split', name: '주변 명소·연관 관광지', src: '한국관광공사 국문 관광정보 · 연관 관광지', prompt: '성산일출봉 주변 명소와 함께 가기 좋은 곳을 알려줘' },
+  { icon: 'cloud-sun', name: '날씨·일출·일몰', src: '기상청 단기예보 · 한국천문연구원', prompt: '지금 제주 날씨와 오늘 일몰 시각을 알려줘' },
+  { icon: 'people', name: '혼잡도 예측', src: '한국관광공사 관광지 집중률', prompt: '성산일출봉은 앞으로 언제가 가장 한적해?' },
+  { icon: 'tree', name: '한라산 둘레길·오름·박물관', src: '제주데이터허브', prompt: '한라산 둘레길 코스를 거리와 함께 알려줘' },
+  { icon: 'signpost', name: '코스·경로 만들기', src: '장소 좌표와 구간 거리 계산', prompt: '서귀포에서 반나절 코스를 만들어줘' },
 ]
 
 export default function Home() {
@@ -102,7 +98,7 @@ export default function Home() {
         <div className="jp-eyebrow mb-1">Themes</div>
         <h2 className="h4 jp-section-title mb-1">오늘은 어디로 떠나볼까요</h2>
         <p className="text-muted mb-4">마음에 드는 풍경을 고르면 AI가 그 주제로 코스를 만들어 드려요.</p>
-        <Row xs={1} md={3} className="g-3">
+        <Row xs={1} sm={2} lg={3} className="g-3">
           {THEMES.map((t) => (
             <Col key={t.title}>
               <Link to={`/agent?q=${encodeURIComponent(t.prompt)}`} className="jp-theme-card">
@@ -121,15 +117,16 @@ export default function Home() {
       <Container className="pb-5">
         <div className="jp-eyebrow mb-1">How it works</div>
         <h2 className="h4 jp-section-title mb-1">AI가 직접 확인하고 답해요</h2>
-        <p className="text-muted mb-4">답변마다 AI가 어떤 데이터를 호출했는지 화면에 그대로 보여 드려요.</p>
+        <p className="text-muted mb-4">카드를 누르면 그 데이터를 쓰는 질문을 AI에게 바로 던져 볼 수 있어요. 답변마다 호출한 도구도 화면에 보여 드려요.</p>
         <Row xs={1} sm={2} lg={3} className="g-3">
           {TOOLS.map((t) => (
             <Col key={t.name}>
-              <div className="jp-tool">
+              <Link to={`/agent?q=${encodeURIComponent(t.prompt)}`} className="jp-tool">
                 <i className={`bi bi-${t.icon}`} />
                 <div className="fw-semibold mt-2">{t.name}</div>
                 <div className="src">{t.src}</div>
-              </div>
+                <div className="try">“{t.prompt}” <i className="bi bi-arrow-right" /></div>
+              </Link>
             </Col>
           ))}
         </Row>

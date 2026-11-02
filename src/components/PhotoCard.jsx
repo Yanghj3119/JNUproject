@@ -1,12 +1,11 @@
 import { Link } from 'react-router-dom'
 import { useAppStore } from '../store/useAppStore'
-import { monthLabel, photoLink } from '../lib/format'
+import { photoLink } from '../lib/format'
 
-// 사진 한 장 카드 — 마우스를 올리면 촬영지·시기·촬영자·키워드가 나타나고, 바로 AI 에게 물어볼 수 있다
+// 사진 한 장 카드 — 마우스를 올리면 촬영지·촬영자·키워드가 나타나고, 바로 AI 에게 물어볼 수 있다
 export default function PhotoCard({ photo }) {
   const faved = useAppStore((s) => s.favorites.some((f) => f.source === 'photo' && f.item_id === String(photo.id)))
   const toggle = useAppStore((s) => s.toggleFavorite)
-  const month = monthLabel(photo.month)
   const tags = String(photo.keywords || '').split(/[,#]/).map((t) => t.trim()).filter(Boolean).slice(0, 3)
   const ask = `${photo.title}${photo.location ? ` (${photo.location})` : ''}은(는) 어떤 곳이야? 근처 코스도 추천해줘`
 
@@ -14,12 +13,10 @@ export default function PhotoCard({ photo }) {
     <div className="jp-photo">
       <Link to={photoLink(photo)} className="jp-photo-img" aria-label={photo.title}>
         <img src={photo.image} alt={photo.title} loading="lazy" />
-        {month && <span className="jp-chip">{month}</span>}
         <div className="jp-photo-hover">
           <div className="t">{photo.title}</div>
           <div className="m">
             {photo.location && <span><i className="bi bi-geo-alt me-1" />{photo.location}</span>}
-            {month && <span><i className="bi bi-calendar3 me-1" />{month} 촬영</span>}
             {photo.photographer && <span><i className="bi bi-camera me-1" />{photo.photographer}</span>}
           </div>
           {tags.length > 0 && <div className="k">{tags.map((t) => <span key={t}>#{t}</span>)}</div>}

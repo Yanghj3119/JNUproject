@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { Container } from 'react-bootstrap'
 import { useAppStore } from '../store/useAppStore'
 import KakaoMap from '../components/KakaoMap'
+import PageBanner from '../components/PageBanner'
 
 const TOOL_LABEL = {
   search_photos: ['images', '사진 검색'],
@@ -15,7 +16,6 @@ const TOOL_LABEL = {
   propose_route: ['signpost', '코스 만들기'],
   search_jeju_places: ['geo-alt', '오름·박물관·기념품'],
   search_lodging: ['building', '숙박 정보'],
-  get_beach_water_quality: ['water', '해수욕장 수질'],
   get_hallasan_trails: ['tree', '한라산 둘레길'],
   get_traffic_accident_spots: ['exclamation-triangle', '사고 다발지역'],
   search_bus_stops: ['bus-front', '버스 정류소'],
@@ -110,16 +110,14 @@ export default function Agent() {
   const lastRouteMsg = [...messages].reverse().find((m) => m.role === 'assistant' && m.route)
 
   return (
-    <Container>
-      <div className="jp-pagehead">
-        <div>
-          <div className="jp-eyebrow mb-1">AI 가이드</div>
-          <h1 className="h3 fw-bold mb-1">무엇이든 물어보세요</h1>
-          <p className="text-muted mb-0">사진·날씨·혼잡도·접근성을 AI가 도구로 직접 확인하고, 코스까지 만들어 드려요.</p>
-        </div>
-        {messages.length > 0 && <button className="btn btn-sm btn-outline-sea" onClick={clearChat}><i className="bi bi-arrow-counterclockwise me-1" />새 대화</button>}
-      </div>
-
+    <>
+    <PageBanner
+      img="/images/jeju-night.jpg" pos="50% 75%" eyebrow="AI 가이드" title="무엇이든 물어보세요"
+      sub="사진·날씨·혼잡도·접근성을 AI가 도구로 직접 확인하고, 코스까지 만들어 드려요."
+    >
+      {messages.length > 0 && <button className="btn btn-sm btn-outline-light" onClick={clearChat}><i className="bi bi-arrow-counterclockwise me-1" />새 대화</button>}
+    </PageBanner>
+    <Container className="pt-3">
       <div className="jp-agent">
         <div className="jp-chat">
           <div className="jp-chat-log">
@@ -165,5 +163,6 @@ export default function Agent() {
         <RoutePanel route={lastRouteMsg?.route} summary={lastRouteMsg?.text} />
       </div>
     </Container>
+    </>
   )
 }

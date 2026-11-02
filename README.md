@@ -39,7 +39,6 @@ Supabase 는 `supabase/schema.sql` 을 SQL Editor 에서 실행해 테이블을 
 | 용도 | API | 화면 |
 |---|---|---|
 | 오름·박물관/미술관·기념품 위치 | 오름 위치 정보 외 2종 | 지도 페이지 핀 + AI 도구 `search_jeju_places` |
-| 해수욕장 수질 | 제주 해수욕장 수질 조사 정보 | 여행 정보 탭 + `get_beach_water_quality` |
 | 한라산 둘레길 | 한라산 둘레길 코스별 정보 | 여행 정보 탭 + `get_hallasan_trails` |
 | 교통사고 다발지역 | 교통사고 다발지역 정보 | 여행 정보 탭 + `get_traffic_accident_spots` |
 | 버스 정류소 | 버스 정류소 기본 정보 | 여행 정보 탭 + `search_bus_stops` |
@@ -49,8 +48,17 @@ Supabase 는 `supabase/schema.sql` 을 SQL Editor 에서 실행해 테이블을 
 
 > `server/photos.js`, `server/related.js` 의 일부 파라미터·필드명은 활용가이드로 실제 호출해 확인이 필요합니다. (/status 에서 실패하면 해당 파일 상단 주석 참고)
 
+## 3D 지도 데이터 (키 불필요)
+실제 지형을 브라우저에서 합성합니다 (`src/lib/terrain.js`).
+- 고도: [AWS Terrain Tiles](https://registry.opendata.aws/terrain-tiles/) (Terrarium, Mapzen)
+- 위성사진: [Sentinel-2 cloudless 2020](https://s2maps.eu) © EOX IT Services GmbH — Contains modified Copernicus Sentinel data 2020, **CC BY-NC-SA 4.0 (비영리·출처 표기 필수)**. 상업적 서비스로 쓰려면 EOX 라이선스를 별도로 받아야 합니다.
+- 타일을 못 받으면 단순화된 3D 섬(`JejuStylized.jsx`)으로 자동 대체됩니다.
+
 ## 이미지
-`public/images/` 의 홈 이미지 3장은 Pixabay 무료 이미지(Pixabay 콘텐츠 라이선스)를 웹용(가로 1800px, JPEG)으로 줄인 것입니다.
+`public/images/` 의 사진 8장(홈 히어로·테마 카드·페이지 배너·로그인·404)은 Pixabay 무료 이미지(Pixabay 콘텐츠 라이선스)를 웹용(가로 1800px, JPEG)으로 줄인 것입니다.
+
+## 지도 핀
+공공데이터가 비어 있거나 실패하면 `src/data/landmarks.js` 의 제주 대표 명소(관광지 24곳·오름 9곳)를 대신 표시합니다. 핀 색은 푸른 계열이며(`src/lib/format.js` 의 `TYPE_META`), 3D 핀은 `src/components/Jeju3D.jsx` 의 `Pins` 에서 애니메이션합니다.
 
 ## 구조
 ```

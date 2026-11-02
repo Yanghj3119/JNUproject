@@ -14,7 +14,6 @@ import NotFound from './pages/NotFound'
 // ── 메뉴 목록 ────────────────────────────────────────────
 // 페이지를 추가할 때: ① pages/에 파일 만들기 ② NAV_ITEMS 에 한 줄 ③ routes 에 한 줄
 export const NAV_ITEMS = [
-  { to: '/', label: '홈', icon: 'house' },
   { to: '/agent', label: 'AI 가이드', icon: 'stars', ai: true },
   { to: '/explore', label: '사진 탐색', icon: 'images' },
   { to: '/map', label: '지도', icon: 'map' },

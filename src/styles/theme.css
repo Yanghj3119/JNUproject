@@ -170,6 +170,15 @@ h1, h2, h3, h4, h5 { letter-spacing: -0.025em; }
 .jp-map-chips .jp-month.on { background: var(--jp-ink); }
 .jp-map-hint { position: absolute; z-index: 5; left: 0.8rem; bottom: 0.8rem; background: rgba(15, 26, 32, 0.82); color: #fff; font-size: 0.78rem; padding: 0.3rem 0.8rem; border-radius: 6px; }
 .jp-pin-label { background: var(--jp-ink); color: #fff; padding: 0.22rem 0.65rem; border-radius: 6px; font-size: 13px; font-weight: 600; white-space: nowrap; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3); }
+.jp-map-tools { position: absolute; z-index: 5; right: 0.8rem; bottom: 2.6rem; display: flex; align-items: center; gap: 0.25rem; background: rgba(15, 26, 32, 0.82); color: #fff; border-radius: 8px; padding: 0.25rem 0.4rem; font-size: 0.78rem; }
+.jp-map-tools span { padding: 0 0.35rem; opacity: 0.8; }
+.jp-map-tools button { border: 0; background: transparent; color: #fff; border-radius: 6px; padding: 0.1rem 0.5rem; font-size: 0.78rem; font-weight: 600; }
+.jp-map-tools button.on { background: #fff; color: var(--jp-ink); }
+.jp-map-attrib { position: absolute; z-index: 5; right: 0.8rem; bottom: 0.5rem; max-width: 62%; font-size: 0.62rem; line-height: 1.3; color: rgba(255, 255, 255, 0.85); background: rgba(15, 26, 32, 0.55); border-radius: 4px; padding: 0.1rem 0.45rem; text-align: right; }
+.jp-map-attrib a { color: #fff; }
+.jp-map-loading { position: absolute; inset: 0; display: grid; place-items: center; z-index: 4; color: var(--jp-ink-2); font-size: 0.92rem; background: linear-gradient(160deg, #dbe8ee, #c4d6df); }
+.jp-geo-label { color: #fff; font-size: 12px; font-weight: 600; letter-spacing: 0.02em; white-space: nowrap; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75), 0 0 8px rgba(0, 0, 0, 0.45); }
+.jp-geo-label small { display: block; font-size: 10px; font-weight: 500; opacity: 0.85; text-align: center; }
 .jp-side { max-height: 68vh; overflow-y: auto; }
 .jp-side img.cover { width: 100%; height: 170px; object-fit: cover; border-radius: 12px; }
 .jp-kpin { position: relative; width: 18px; height: 18px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); background: var(--c); border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35); cursor: pointer; }
@@ -218,3 +227,32 @@ h1, h2, h3, h4, h5 { letter-spacing: -0.025em; }
   .jp-photo-hover { display: none; } /* 터치 화면에서는 호버가 없어 하단 정보만 사용 */
   .jp-askbtn { display: none; }
 }
+
+/* ── 페이지 사진 배너 · 브랜드 · 카드 링크 · 로그인 분할 · 404 ─────────────── */
+.jp-brand { cursor: pointer; transition: opacity 0.15s; }
+.jp-brand:hover { opacity: 0.8; }
+.jp-brand span { line-height: 1; }
+
+.jp-banner { position: relative; overflow: hidden; border-radius: 20px; color: #fff; background-size: cover; min-height: 190px; display: flex; align-items: flex-end; }
+.jp-banner::before { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(8, 18, 24, 0.82) 0%, rgba(8, 18, 24, 0.55) 55%, rgba(8, 18, 24, 0.2) 100%); }
+.jp-banner-inner { position: relative; width: 100%; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 1rem; padding: 1.8rem 2rem; }
+.jp-banner .jp-eyebrow { color: #93c5fd; }
+.jp-banner-sub { color: #d5e1e7; max-width: 560px; }
+
+a.jp-tool { display: block; color: inherit; text-decoration: none; transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s; cursor: pointer; }
+a.jp-tool:hover { transform: translateY(-3px); border-color: var(--jp-sea); box-shadow: 0 12px 28px rgba(15, 26, 32, 0.1); }
+.jp-tool .try { margin-top: 0.7rem; font-size: 0.8rem; color: var(--jp-sea); font-weight: 500; line-height: 1.4; }
+.jp-tool:hover .try { text-decoration: underline; text-underline-offset: 3px; }
+
+.jp-theme-card { aspect-ratio: 5 / 4; }
+
+.jp-auth-split { display: grid; grid-template-columns: 1fr 1.05fr; max-width: 880px; padding: 0; overflow: hidden; }
+.jp-auth-visual { position: relative; background-size: cover; background-position: 70% 50%; color: #fff; display: flex; align-items: flex-end; padding: 2rem; min-height: 460px; }
+.jp-auth-visual::before { content: ''; position: absolute; inset: 0; background: linear-gradient(to top, rgba(8, 18, 24, 0.85), rgba(8, 18, 24, 0.1) 70%); }
+.jp-auth-visual > div { position: relative; }
+.jp-auth-form { padding: 2rem; }
+@media (max-width: 767px) { .jp-auth-split { grid-template-columns: 1fr; } .jp-auth-visual { min-height: 180px; } }
+
+.jp-404 { min-height: 70vh; display: grid; place-items: center; color: #fff; background-size: cover; background-position: center; position: relative; }
+.jp-404::before { content: ''; position: absolute; inset: 0; background: rgba(8, 18, 24, 0.6); }
+.jp-404 > div { position: relative; }

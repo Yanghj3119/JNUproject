@@ -1,182 +1,405 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
-import { Canvas, useFrame } from '@react-three/fiber'
-import { OrbitControls, Html } from '@react-three/drei'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { OrbitControls, Sky } from '@react-three/drei'
 import { typeMeta } from '../lib/format'
+import { loadTerrain } from '../lib/terrain'
+import JejuStylized from './JejuStylized'
 
-// ── 좌표 변환 ─────────────────────────────────────────────
-// 위도·경도 → 3D 좌표. 1 단위 ≈ 10km (위도 1° ≈ 111km, 제주 위도에서 경도 1° ≈ 92.7km)
-const KX = 9.27, KZ = 11.1
-const toXZ = (lat, lng) => [(lng - 126.55) * KX, (33.38 - lat) * KZ]
-const LAND_H = 0.3
-
-// 제주 해안선 (경도, 위도) — 시계 방향, 부드럽게 이어서 사용
-const COAST = [
-  [126.53, 33.52], [126.65, 33.54], [126.76, 33.56], [126.87, 33.54], [126.95, 33.47], [126.93, 33.41],
-  [126.88, 33.36], [126.83, 33.32], [126.72, 33.26], [126.6, 33.24], [126.45, 33.23], [126.3, 33.23],
-  [126.18, 33.24], [126.15, 33.28], [126.16, 33.35], [126.17, 33.43], [126.23, 33.49], [126.33, 33.51], [126.43, 33.51],
+// 지명 라벨 (실제 좌표·고도)
+const LANDMARKS = [
+  { name: '한라산', sub: '1,947m', lat: 33.3617, lng: 126.5292 },
+  { name: '성산일출봉', lat: 33.4584, lng: 126.9425 },
+  { name: '산방산', lat: 33.2397, lng: 126.3141 },
+  { name: '우도', lat: 33.5, lng: 126.953 },
+  { name: '가파도', lat: 33.1667, lng: 126.2717 },
+  { name: '마라도', lat: 33.1139, lng: 126.2697 },
 ]
 
-// 산: 한라산과 대표 오름 (높이는 보기 좋게 과장)
-const MOUNTAINS = [
-  { name: '한라산', lat: 33.3617, lng: 126.5292, h: 1.15, r: 1.7, color: '#6f9a58' },
-  { name: '성산일출봉', lat: 33.4584, lng: 126.9425, h: 0.4, r: 0.32, color: '#7aa35f' },
-  { name: '산방산', lat: 33.2397, lng: 126.3141, h: 0.45, r: 0.28, color: '#8a9a6a' },
-].map((m) => ({ ...m, pos: toXZ(m.lat, m.lng) }))
+// 날씨별 하늘·빛 설정
+function atmosphere(weather) {
+  if (weather?.rainy) return { fog: '#8a97a4', turbidity: 12, rayleigh: 0.4, sun: 0.9, elev: 18, clouds: 0.85, dark: true }
+  if (weather?.sky === '흐림') return { fog: '#a9b7c4', turbidity: 9, rayleigh: 0.7, sun: 1.2, elev: 24, clouds: 0.7, dark: true }
+  if (weather?.sky === '구름많음') return { fog: '#b4cadc', turbidity: 5, rayleigh: 1, sun: 2.0, elev: 32, clouds: 0.4, dark: false }
+  return { fog: '#bcd6ea', turbidity: 2.5, rayleigh: 1.3, sun: 2.6, elev: 38, clouds: 0.12, dark: false }
+}
 
-function heightAt(x, z) {
-  let h = 0
-  for (const m of MOUNTAINS) {
-    const d = Math.hypot(x - m.pos[0], z - m.pos[1])
-    if (d < m.r) h = Math.max(h, m.h * (1 - Math.pow(d / m.r, 1.6)))
+// 가장자리를 서서히 투명하게 → 바깥 바다 평면과 자연스럽게 이어지도록
+function featherTexture() {
+  const N = 256
+  const c = document.createElement('canvas')
+  c.width = c.height = N
+  const g = c.getContext('2d')
+  const img = g.createImageData(N, N)
+  const ss = (a, b, x) => { const t = Math.min(Math.max((x - a) / (b - a), 0), 1); return t * t * (3 - 2 * t) }
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const u = i / (N - 1), v = j / (N - 1)
+    const a = Math.min(ss(0, 0.09, u), ss(0, 0.09, 1 - u), ss(0, 0.09, v), ss(0, 0.09, 1 - v))
+    const k = (j * N + i) * 4
+    img.data[k] = img.data[k + 1] = img.data[k + 2] = Math.round(a * 255)
+    img.data[k + 3] = 255
   }
-  return h
+  g.putImageData(img, 0, 0)
+  return new THREE.CanvasTexture(c)
 }
 
-function Island() {
-  const geometry = useMemo(() => {
-    const pts = COAST.map(([lng, lat]) => { const [x, z] = toXZ(lat, lng); return new THREE.Vector3(x, -z, 0) })
-    const curve = new THREE.CatmullRomCurve3(pts, true, 'centripetal')
-    const shape = new THREE.Shape(curve.getPoints(220).map((p) => new THREE.Vector2(p.x, p.y)))
-    return new THREE.ExtrudeGeometry(shape, { depth: LAND_H, bevelEnabled: true, bevelThickness: 0.04, bevelSize: 0.07, bevelSegments: 2, curveSegments: 1 })
-  }, [])
-  return (
-    <mesh geometry={geometry} rotation={[-Math.PI / 2, 0, 0]}>
-      <meshStandardMaterial color="#9bc77a" roughness={0.9} />
-    </mesh>
-  )
+// 구름용 부드러운 원형 그라데이션
+function puffTexture() {
+  const c = document.createElement('canvas')
+  c.width = c.height = 128
+  const g = c.getContext('2d')
+  const grad = g.createRadialGradient(64, 64, 0, 64, 64, 64)
+  grad.addColorStop(0, 'rgba(255,255,255,0.95)')
+  grad.addColorStop(0.5, 'rgba(255,255,255,0.45)')
+  grad.addColorStop(1, 'rgba(255,255,255,0)')
+  g.fillStyle = grad
+  g.fillRect(0, 0, 128, 128)
+  return new THREE.CanvasTexture(c)
 }
 
-function Mountain({ pos, h, r, color }) {
-  const geometry = useMemo(() => {
-    const pts = []
-    for (let i = 0; i <= 24; i++) {
-      const rr = r * (1 - i / 24)
-      pts.push(new THREE.Vector2(rr, h * (1 - Math.pow(rr / r, 1.6))))
+// 글자를 캔버스 텍스처로 만들어 스프라이트로 표시 — 화면에서 항상 같은 크기, 지형에 가려지지 않음
+//  variant 'pin': 어두운 알약 모양(장소 이름) / 'geo': 그림자 있는 흰 글씨(지명)
+function TextSprite({ text, sub, position, variant = 'geo', px = 13 }) {
+  const { camera, size } = useThree()
+  const { texture, w, h } = useMemo(() => {
+    const dpr = 2
+    const g0 = document.createElement('canvas').getContext('2d')
+    const font = `600 ${px * dpr}px "Pretendard Variable", Pretendard, "Noto Sans KR", sans-serif`
+    g0.font = font
+    const tw = Math.ceil(g0.measureText(text).width)
+    const padX = (variant === 'pin' ? 14 : 8) * dpr, padY = (variant === 'pin' ? 8 : 6) * dpr
+    const subH = sub ? px * dpr * 0.9 : 0
+    const cw = tw + padX * 2, ch = px * dpr * 1.25 + subH + padY * 2
+    const c = document.createElement('canvas')
+    c.width = cw; c.height = ch
+    const g = c.getContext('2d')
+    if (variant === 'pin') {
+      g.fillStyle = 'rgba(15,26,32,0.92)'
+      g.beginPath(); g.roundRect(0, 0, cw, ch, 10 * dpr); g.fill()
+    } else {
+      g.shadowColor = 'rgba(0,0,0,0.85)'; g.shadowBlur = 6 * dpr
     }
-    return new THREE.LatheGeometry(pts, 40)
-  }, [h, r])
+    g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = font
+    g.fillText(text, cw / 2, padY + (px * dpr * 1.25) / 2)
+    if (sub) { g.font = `500 ${px * dpr * 0.82}px "Pretendard Variable", Pretendard, sans-serif`; g.globalAlpha = 0.85; g.fillText(sub, cw / 2, padY + px * dpr * 1.25 + subH / 2) }
+    const t = new THREE.CanvasTexture(c)
+    t.colorSpace = THREE.SRGBColorSpace
+    return { texture: t, w: cw / dpr, h: ch / dpr }
+  }, [text, sub, variant, px])
+  useEffect(() => () => texture.dispose(), [texture])
+
+  // sizeAttenuation=false 일 때 스프라이트 높이 = scale × 거리 → 화면 높이 대비 비율로 환산
+  const k = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)
+  const s = (h / size.height) * k
   return (
-    <mesh geometry={geometry} position={[pos[0], LAND_H, pos[1]]}>
-      <meshStandardMaterial color={color} roughness={0.95} />
+    <sprite position={position} scale={[s * (w / h), s, 1]} renderOrder={20}>
+      <spriteMaterial map={texture} transparent depthTest={false} depthWrite={false} sizeAttenuation={false} fog={false} toneMapped={false} />
+    </sprite>
+  )
+}
+
+function Terrain({ terrain, exag }) {
+  const { gl } = useThree()
+  const [detail, setDetail] = useState(null)
+
+  // 저해상도로 먼저 보여 주고, 고해상도 위성사진이 준비되면 교체
+  useEffect(() => {
+    let alive = true
+    terrain.loadDetail().then((c) => alive && c && setDetail(c))
+    return () => { alive = false }
+  }, [terrain])
+
+  const geometry = useMemo(() => {
+    const { data, gw, gh, size } = terrain.grid
+    const pos = new Float32Array(gw * gh * 3)
+    const uv = new Float32Array(gw * gh * 2)
+    for (let j = 0; j < gh; j++) for (let i = 0; i < gw; i++) {
+      const k = j * gw + i
+      pos[k * 3] = (i / (gw - 1) - 0.5) * size[0]
+      pos[k * 3 + 1] = (data[k] / terrain.UNIT) * exag
+      pos[k * 3 + 2] = (j / (gh - 1) - 0.5) * size[1]
+      uv[k * 2] = i / (gw - 1)
+      uv[k * 2 + 1] = 1 - j / (gh - 1)
+    }
+    const idx = new Uint32Array((gw - 1) * (gh - 1) * 6)
+    let p = 0
+    for (let j = 0; j < gh - 1; j++) for (let i = 0; i < gw - 1; i++) {
+      const a = j * gw + i, b = a + 1, c = a + gw, d = c + 1
+      idx[p++] = a; idx[p++] = c; idx[p++] = b // 위쪽(+y)을 보는 삼각형
+      idx[p++] = b; idx[p++] = c; idx[p++] = d
+    }
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3))
+    geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2))
+    geo.setIndex(new THREE.BufferAttribute(idx, 1))
+    geo.computeVertexNormals()
+    return geo
+  }, [terrain, exag])
+
+  const { map, alpha } = useMemo(() => {
+    // GPU 최대 텍스처 크기를 넘으면 줄여서 사용
+    let src = detail ?? terrain.imageCanvas
+    const max = gl.capabilities.maxTextureSize
+    if (src.width > max) {
+      const s = max / src.width
+      const small = document.createElement('canvas')
+      small.width = max; small.height = Math.floor(src.height * s)
+      small.getContext('2d').drawImage(src, 0, 0, small.width, small.height)
+      src = small
+    }
+    const m = new THREE.CanvasTexture(src)
+    m.colorSpace = THREE.SRGBColorSpace
+    m.anisotropy = Math.min(8, gl.capabilities.getMaxAnisotropy())
+    return { map: m, alpha: featherTexture() }
+  }, [terrain, detail, gl])
+
+  useEffect(() => () => geometry.dispose(), [geometry])
+  useEffect(() => () => { map.dispose(); alpha.dispose() }, [map, alpha])
+
+  return (
+    <mesh geometry={geometry} renderOrder={1}>
+      <meshStandardMaterial map={map} alphaMap={alpha} transparent roughness={1} metalness={0} />
     </mesh>
   )
 }
 
-function Pin({ spot, selected, onSelect }) {
-  const group = useRef()
-  const [hover, setHover] = useState(false)
-  const [x, z] = toXZ(spot.lat, spot.lng)
-  const y = LAND_H + heightAt(x, z)
-  const color = typeMeta(spot.type).color
+// 바깥 바다 (지형 가장자리와 같은 색)
+function Sea({ color, fogColor }) {
+  return (
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.004, 0]}>
+      <planeGeometry args={[400, 400]} />
+      <meshStandardMaterial color={color} roughness={0.35} metalness={0.05} emissive={fogColor} emissiveIntensity={0.03} />
+    </mesh>
+  )
+}
 
+// 모든 장소를 한 번에 그리는 인스턴스 핀 — 위아래로 살짝 떠 있는 푸른 핀 (오름 수백 개도 가볍게)
+//  · 선택/호버한 핀은 커지고 통통 튀며, 바닥에 퍼지는 물결 링이 생긴다 (핀이 80개 이하면 모든 핀에 은은하게)
+function Pins({ spots, terrain, exag, selectedId, onSelect }) {
+  const cone = useRef()
+  const ball = useRef()
+  const ring = useRef()
+  const hit = useRef()
+  const [hover, setHover] = useState(-1)
+  const dummy = useMemo(() => new THREE.Object3D(), [])
+  const tint = useMemo(() => new THREE.Color(), [])
+
+  const items = useMemo(() => spots.map((s) => {
+    const [x, z] = terrain.project(s.lat, s.lng)
+    return { s, x, z, y: (terrain.heightAt(x, z) / terrain.UNIT) * exag + 0.006, color: new THREE.Color(typeMeta(s.type).color) }
+  }), [spots, terrain, exag])
+
+  // 색과 클릭 영역은 한 번만 설정, 위치·크기는 아래 useFrame 에서 매 프레임 애니메이션
+  useLayoutEffect(() => {
+    items.forEach((it, i) => {
+      cone.current.setColorAt(i, it.color)
+      ball.current.setColorAt(i, it.color)
+      dummy.position.set(it.x, it.y + 0.19, it.z); dummy.rotation.set(0, 0, 0); dummy.scale.setScalar(1); dummy.updateMatrix()
+      hit.current.setMatrixAt(i, dummy.matrix)
+    })
+    for (const r of [cone.current, ball.current]) if (r.instanceColor) r.instanceColor.needsUpdate = true
+    hit.current.instanceMatrix.needsUpdate = true
+    hit.current.computeBoundingSphere()
+  }, [items, dummy])
+
+  const pulseAll = items.length <= 80
   useFrame(({ clock }) => {
-    if (!group.current) return
-    const s = selected ? 1.5 + Math.sin(clock.elapsedTime * 4) * 0.12 : hover ? 1.3 : 1
-    group.current.scale.setScalar(s)
-    group.current.position.y = y + 0.22 + (selected ? Math.sin(clock.elapsedTime * 3) * 0.05 : 0)
+    if (!cone.current || !ball.current || !ring.current) return
+    const t = clock.elapsedTime
+    items.forEach((it, i) => {
+      const sel = String(it.s.id) === String(selectedId)
+      const hov = i === hover
+      const sc = sel ? 1.5 : hov ? 1.25 : 1
+      const bob = (Math.sin(t * 2.2 + i * 0.9) + 1) * 0.5 * 0.03 + (sel ? Math.abs(Math.sin(t * 4)) * 0.06 : 0)
+
+      dummy.position.set(it.x, it.y + 0.08 * sc + bob, it.z); dummy.rotation.set(Math.PI, 0, 0); dummy.scale.setScalar(sc); dummy.updateMatrix()
+      cone.current.setMatrixAt(i, dummy.matrix)
+      dummy.position.set(it.x, it.y + 0.185 * sc + bob, it.z); dummy.rotation.set(0, 0, 0); dummy.updateMatrix()
+      ball.current.setMatrixAt(i, dummy.matrix)
+
+      // 바닥 물결 링: 퍼지면서 사라짐 (더하기 블렌딩 + 색을 어둡게 = 투명해지는 효과)
+      const active = sel || hov || pulseAll
+      const phase = (t * (sel ? 0.9 : 0.5) + i * 0.37) % 1
+      dummy.position.set(it.x, it.y + 0.012, it.z); dummy.rotation.set(-Math.PI / 2, 0, 0)
+      dummy.scale.setScalar(active ? (0.7 + phase * (sel ? 1.8 : 1.1)) : 0); dummy.updateMatrix()
+      ring.current.setMatrixAt(i, dummy.matrix)
+      ring.current.setColorAt(i, tint.copy(it.color).multiplyScalar((1 - phase) * (sel ? 1.4 : 0.55)))
+    })
+    cone.current.instanceMatrix.needsUpdate = true
+    ball.current.instanceMatrix.needsUpdate = true
+    ring.current.instanceMatrix.needsUpdate = true
+    if (ring.current.instanceColor) ring.current.instanceColor.needsUpdate = true
   })
 
+  const sel = items.find((it) => String(it.s.id) === String(selectedId))
+  const hov = hover >= 0 ? items[hover] : null
+
   return (
-    <group
-      ref={group} position={[x, y + 0.22, z]}
-      onClick={(e) => { e.stopPropagation(); onSelect(spot) }}
-      onPointerOver={(e) => { e.stopPropagation(); setHover(true); document.body.style.cursor = 'pointer' }}
-      onPointerOut={() => { setHover(false); document.body.style.cursor = '' }}
-    >
-      <mesh position={[0, 0.12, 0]} rotation={[Math.PI, 0, 0]}>
-        <coneGeometry args={[0.07, 0.22, 12]} />
-        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={selected ? 0.6 : 0.15} />
-      </mesh>
-      <mesh position={[0, 0.3, 0]}>
-        <sphereGeometry args={[0.09, 16, 16]} />
-        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={selected ? 0.6 : 0.15} />
-      </mesh>
-      {(selected || hover) && (
-        <Html position={[0, 0.7, 0]} center distanceFactor={9} zIndexRange={[20, 0]} style={{ pointerEvents: 'none' }}>
-          <div className="jp-pin-label">{spot.title}</div>
-        </Html>
-      )}
-    </group>
+    <>
+      <instancedMesh key={`r${items.length}`} ref={ring} args={[null, null, items.length]} frustumCulled={false}>
+        <ringGeometry args={[0.1, 0.125, 40]} />
+        <meshBasicMaterial transparent depthWrite={false} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} toneMapped={false} />
+      </instancedMesh>
+      <instancedMesh key={`c${items.length}`} ref={cone} args={[null, null, items.length]} frustumCulled={false}>
+        <coneGeometry args={[0.045, 0.16, 12]} />
+        <meshStandardMaterial roughness={0.45} emissive="#1e3a8a" emissiveIntensity={0.55} />
+      </instancedMesh>
+      <instancedMesh key={`b${items.length}`} ref={ball} args={[null, null, items.length]} frustumCulled={false}>
+        <sphereGeometry args={[0.075, 20, 16]} />
+        <meshStandardMaterial roughness={0.25} metalness={0.1} emissive="#1e3a8a" emissiveIntensity={0.55} />
+      </instancedMesh>
+      {/* 눈에 보이지 않는 큰 클릭 영역 — 작은 핀도 쉽게 누를 수 있게 */}
+      <instancedMesh
+        key={`h${items.length}`} ref={hit} args={[null, null, items.length]} frustumCulled={false}
+        onClick={(e) => { e.stopPropagation(); onSelect(items[e.instanceId]?.s) }}
+        onPointerMove={(e) => { e.stopPropagation(); setHover(e.instanceId); document.body.style.cursor = 'pointer' }}
+        onPointerOut={() => { setHover(-1); document.body.style.cursor = '' }}
+      >
+        <sphereGeometry args={[0.17, 10, 8]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </instancedMesh>
+
+      {sel && <TextSprite text={sel.s.title} variant="pin" position={[sel.x, sel.y + 0.52, sel.z]} />}
+      {hov && hov !== sel && <TextSprite text={hov.s.title} variant="pin" position={[hov.x, hov.y + 0.46, hov.z]} />}
+    </>
   )
 }
 
-// 비·눈 소식이 있을 때 섬 위에 내리는 비
-function Rain({ count = 900 }) {
-  const ref = useRef()
-  const pos = useMemo(() => {
-    const a = new Float32Array(count * 3)
-    for (let i = 0; i < count; i++) {
-      a[i * 3] = (Math.random() - 0.5) * 12
-      a[i * 3 + 1] = Math.random() * 6
-      a[i * 3 + 2] = (Math.random() - 0.5) * 6
-    }
-    return a
-  }, [count])
-  useFrame((_, dt) => {
-    const arr = ref.current.geometry.attributes.position.array
-    for (let i = 0; i < count; i++) {
-      arr[i * 3 + 1] -= dt * 7
-      if (arr[i * 3 + 1] < 0) arr[i * 3 + 1] = 6
-    }
-    ref.current.geometry.attributes.position.needsUpdate = true
+function GeoLabels({ terrain, exag }) {
+  return LANDMARKS.map((l) => {
+    const [x, z] = terrain.project(l.lat, l.lng)
+    const y = (terrain.heightAt(x, z) / terrain.UNIT) * exag
+    return <TextSprite key={l.name} text={l.name} sub={l.sub} position={[x, y + 0.26, z]} px={12} />
   })
-  return (
-    <points ref={ref}>
-      <bufferGeometry><bufferAttribute attach="attributes-position" args={[pos, 3]} /></bufferGeometry>
-      <pointsMaterial color="#d6ecff" size={0.045} transparent opacity={0.8} />
-    </points>
-  )
 }
 
-function Clouds({ dark }) {
-  const ref = useRef()
-  const puffs = useMemo(() => Array.from({ length: 7 }, (_, i) => ({
-    x: -5 + i * 1.7, y: 3 + (i % 3) * 0.35, z: -1.5 + ((i * 37) % 5) * 0.7, s: 0.5 + (i % 3) * 0.2,
+// 날씨에 맞춘 구름 · 비
+function Weather({ atm, rainy }) {
+  const tex = useMemo(puffTexture, [])
+  const group = useRef()
+  const rain = useRef()
+  const puffs = useMemo(() => Array.from({ length: 14 }, (_, i) => ({
+    x: ((i * 53) % 100) / 100 * 12 - 6, y: 1.9 + ((i * 29) % 7) * 0.16, z: ((i * 71) % 100) / 100 * 7 - 3.5, s: 2 + ((i * 17) % 5) * 0.7,
   })), [])
-  useFrame((_, dt) => { ref.current.position.x = ((ref.current.position.x + dt * 0.15 + 6) % 12) - 6 })
+  const drops = useMemo(() => {
+    const a = new Float32Array(1100 * 3)
+    for (let i = 0; i < 1100; i++) { a[i * 3] = (Math.random() - 0.5) * 11; a[i * 3 + 1] = Math.random() * 4; a[i * 3 + 2] = (Math.random() - 0.5) * 7 }
+    return a
+  }, [])
+
+  useFrame((_, dt) => {
+    if (group.current) group.current.position.x = ((group.current.position.x + dt * 0.12 + 3) % 6) - 3
+    if (rain.current) {
+      const arr = rain.current.geometry.attributes.position.array
+      for (let i = 0; i < 1100; i++) { arr[i * 3 + 1] -= dt * 6; if (arr[i * 3 + 1] < 0) arr[i * 3 + 1] = 4 }
+      rain.current.geometry.attributes.position.needsUpdate = true
+    }
+  })
+
   return (
-    <group ref={ref}>
-      {puffs.map((p, i) => (
-        <mesh key={i} position={[p.x, p.y, p.z]} scale={[p.s * 1.8, p.s * 0.7, p.s]}>
-          <sphereGeometry args={[0.6, 16, 12]} />
-          <meshStandardMaterial color={dark ? '#8e99a6' : '#ffffff'} transparent opacity={0.9} />
-        </mesh>
-      ))}
-    </group>
+    <>
+      <group ref={group}>
+        {puffs.map((p, i) => (
+          <sprite key={i} position={[p.x, p.y, p.z]} scale={[p.s, p.s * 0.55, 1]}>
+            <spriteMaterial map={tex} transparent depthWrite={false} opacity={atm.clouds * 0.75} color={atm.dark ? '#9aa4ae' : '#ffffff'} fog={false} />
+          </sprite>
+        ))}
+      </group>
+      {rainy && (
+        <points ref={rain}>
+          <bufferGeometry><bufferAttribute attach="attributes-position" args={[drops, 3]} /></bufferGeometry>
+          <pointsMaterial color="#dbeaff" size={0.03} transparent opacity={0.75} depthWrite={false} />
+        </points>
+      )}
+    </>
   )
 }
 
-const SKY_BG = { 맑음: '#bfe6ff', 구름많음: '#cfdde8', 흐림: '#b3bec9', 비: '#8b99a8' }
+// 선택한 핀으로 카메라가 부드럽게 이동
+function CameraRig({ controls, target }) {
+  const { camera } = useThree()
+  useFrame(() => {
+    const c = controls.current
+    if (!c || !target) return
+    const want = new THREE.Vector3(...target)
+    const delta = want.clone().sub(c.target).multiplyScalar(0.08)
+    c.target.add(delta)
+    camera.position.add(delta)
+    const dist = camera.position.distanceTo(c.target)
+    if (dist > 3.2) camera.position.lerp(c.target, 0.025) // 너무 멀면 가까이
+    c.update()
+  })
+  return null
+}
 
-// spots: [{id,title,lat,lng,type}] / weather: 날씨 API 의 now 값 ({sky, rainy})
-export default function Jeju3D({ spots = [], selectedId, onSelect = () => {}, weather }) {
-  const rainy = Boolean(weather?.rainy)
-  const sky = weather?.sky
-  const bg = rainy ? SKY_BG.비 : (SKY_BG[sky] ?? SKY_BG.맑음)
-  const cloudy = rainy || sky === '흐림' || sky === '구름많음'
+function Scene({ terrain, spots, selectedId, onSelect, weather, exag }) {
+  const atm = atmosphere(weather)
+  const controls = useRef()
+  const az = THREE.MathUtils.degToRad(125)
+  const el = THREE.MathUtils.degToRad(atm.elev)
+  const sunDir = [Math.cos(el) * Math.sin(az), Math.sin(el), Math.cos(el) * Math.cos(az)]
+  const sel = spots.find((s) => String(s.id) === String(selectedId))
+  const target = useMemo(() => {
+    if (!sel) return null
+    const [x, z] = terrain.project(sel.lat, sel.lng)
+    return [x, (terrain.heightAt(x, z) / terrain.UNIT) * exag, z]
+  }, [sel, terrain, exag])
 
   return (
-    <Canvas camera={{ position: [0, 6.5, 8.5], fov: 45 }} dpr={[1, 2]} onPointerMissed={() => onSelect(null)}>
-      <color attach="background" args={[bg]} />
-      <fog attach="fog" args={[bg, 14, 30]} />
-      <ambientLight intensity={rainy ? 0.7 : 0.9} />
-      <directionalLight position={[6, 10, 5]} intensity={rainy ? 0.8 : 1.6} color={sky === '맑음' ? '#fff3d6' : '#ffffff'} />
+    <>
+      <color attach="background" args={[atm.fog]} />
+      <fog attach="fog" args={[atm.fog, 9, 40]} />
+      <Sky distance={1500} sunPosition={sunDir.map((v) => v * 100)} turbidity={atm.turbidity} rayleigh={atm.rayleigh} mieCoefficient={0.005} mieDirectionalG={0.8} />
+      <hemisphereLight args={['#cfe2ff', '#5b6150', atm.dark ? 0.9 : 0.6]} />
+      <directionalLight position={sunDir.map((v) => v * 20)} intensity={atm.sun} color={atm.dark ? '#f4f6f8' : '#fff4e0'} />
 
-      {/* 바다 */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]}>
-        <planeGeometry args={[60, 60]} />
-        <meshStandardMaterial color={rainy ? '#3f7fa0' : '#2a9fd6'} roughness={0.35} metalness={0.1} />
-      </mesh>
+      <Sea color={terrain.seaColor} fogColor={atm.fog} />
+      <Terrain terrain={terrain} exag={exag} />
+      <GeoLabels terrain={terrain} exag={exag} />
+      <Pins spots={spots} terrain={terrain} exag={exag} selectedId={selectedId} onSelect={onSelect} />
+      <Weather atm={atm} rainy={Boolean(weather?.rainy)} />
 
-      <Island />
-      {MOUNTAINS.map((m) => <Mountain key={m.name} {...m} />)}
-      {spots.map((s) => <Pin key={s.id} spot={s} selected={String(s.id) === String(selectedId)} onSelect={onSelect} />)}
+      <OrbitControls ref={controls} makeDefault enablePan={false} minDistance={1.2} maxDistance={14} maxPolarAngle={Math.PI / 2.08} target={[0, 0, 0]} />
+      <CameraRig controls={controls} target={target} />
+    </>
+  )
+}
 
-      {cloudy && <Clouds dark={rainy || sky === '흐림'} />}
-      {rainy && <Rain />}
+// spots: [{id,title,lat,lng,type}] / weather: 날씨 API 의 now 값 ({sky, rainy}) / exaggeration: 고도 과장 배율
+export default function Jeju3D({ spots = [], selectedId, onSelect = () => {}, weather, exaggeration = 3 }) {
+  const [terrain, setTerrain] = useState(null)
+  const [error, setError] = useState(null)
+  const [pct, setPct] = useState(0)
 
-      <OrbitControls enablePan={false} minDistance={4} maxDistance={16} maxPolarAngle={Math.PI / 2.15} />
-    </Canvas>
+  useEffect(() => {
+    let alive = true
+    loadTerrain((p) => alive && setPct(Math.round(p * 100)))
+      .then((t) => alive && setTerrain(t))
+      .catch((e) => alive && setError(e.message))
+    return () => { alive = false }
+  }, [])
+
+  // 지형 데이터를 못 받으면 단순화된 섬으로 대체
+  if (error) {
+    return <JejuStylized spots={spots} selectedId={selectedId} onSelect={onSelect} weather={weather} />
+  }
+
+  return (
+    <div style={{ position: 'absolute', inset: 0 }}>
+      {!terrain && (
+        <div className="jp-map-loading">
+          <div className="spinner-border spinner-border-sm me-2" />실제 지형을 불러오는 중… {pct}%
+        </div>
+      )}
+      {terrain && (
+        <Canvas
+          camera={{ position: [0, 4.2, 6.4], fov: 40, near: 0.05, far: 4000 }}
+          dpr={[1, 2]}
+          onPointerMissed={() => onSelect(null)}
+        >
+          <Scene terrain={terrain} spots={spots} selectedId={selectedId} onSelect={onSelect} weather={weather} exag={exaggeration} />
+        </Canvas>
+      )}
+    </div>
   )
 }

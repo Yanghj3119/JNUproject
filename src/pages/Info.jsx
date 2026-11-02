@@ -3,17 +3,16 @@ import { Col, Container, Row } from 'react-bootstrap'
 import { fetchHub } from '../api/client'
 import { useAsync } from '../lib/useAsync'
 import KakaoMap from '../components/KakaoMap'
+import PageBanner from '../components/PageBanner'
 import Status from '../components/Status'
 
-// 제주데이터허브 데이터: 해수욕장 수질 · 한라산 둘레길 · 교통(사고 다발지역·버스 정류소) · 숙박
+// 제주데이터허브 데이터: 한라산 둘레길 · 교통(사고 다발지역·버스 정류소) · 숙박
 const TABS = [
-  { id: 'beach', label: '해수욕장 수질', icon: 'water' },
   { id: 'trail', label: '한라산 둘레길', icon: 'tree' },
   { id: 'traffic', label: '교통·안전', icon: 'bus-front' },
   { id: 'lodging', label: '숙박', icon: 'building' },
 ]
 
-const BEACHES = ['곽지', '금능', '김녕', '사계', '삼양', '세화', '소금막', '쇠소깍', '신양섭지', '월정', '이호테우', '중문색달', '평대', '표선', '하도', '함덕', '협재', '화순금모래']
 const LODGING_TYPES = ['가족호텔업', '관광호텔업', '소형호텔업', '의료관광호텔업', '호스텔업', '휴양콘도미니엄업']
 
 const Select = ({ value, onChange, options, all = '전체', label }) => (
@@ -22,41 +21,6 @@ const Select = ({ value, onChange, options, all = '전체', label }) => (
     {options.map((o) => <option key={o} value={o}>{o}</option>)}
   </select>
 )
-
-// 적합/부적합 표시 (값 형식: 적합 · 부적합 · Y · N)
-function Suit({ v }) {
-  const s = String(v ?? '').trim()
-  if (!s) return <span className="text-muted">-</span>
-  const bad = /부적합|^N$|불/i.test(s)
-  return <span className={`badge ${bad ? 'text-bg-danger' : 'text-bg-success'}`}>{bad ? '부적합' : '적합'}</span>
-}
-
-function BeachTab() {
-  const [beach, setBeach] = useState('')
-  const [item, setItem] = useState('')
-  const { data, loading, error } = useAsync(() => fetchHub('beach', { beach, item }), [beach, item])
-  return (
-    <>
-      <div className="d-flex flex-wrap gap-2 mb-3">
-        <Select value={beach} onChange={setBeach} options={BEACHES} all="해수욕장 전체" label="해수욕장" />
-        <Select value={item} onChange={setItem} options={['대장균', '장구균']} all="항목 전체" label="측정 항목" />
-      </div>
-      <Status loading={loading} error={error} empty={!loading && !error && !data?.length} emptyText="수질 조사 결과가 없어요" />
-      {data?.length > 0 && (
-        <div className="table-responsive jp-panel p-0">
-          <table className="table align-middle mb-0">
-            <thead><tr><th>연도</th><th>해수욕장</th><th>항목</th><th>조사 지점</th><th>측정값</th><th>적합</th></tr></thead>
-            <tbody>
-              {data.map((b, i) => (
-                <tr key={i}><td>{b.year}</td><td className="fw-semibold">{b.beach}</td><td>{b.item}</td><td>{b.point}</td><td>{b.value}</td><td><Suit v={b.suitable} /></td></tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </>
-  )
-}
 
 function TrailTab() {
   const { data, loading, error } = useAsync(() => fetchHub('trail'), [])
@@ -178,29 +142,26 @@ function LodgingTab() {
 }
 
 export default function Info() {
-  const [tab, setTab] = useState('beach')
+  const [tab, setTab] = useState('trail')
   return (
-    <Container>
-      <div className="jp-pagehead">
-        <div>
-          <div className="jp-eyebrow mb-1">여행 정보</div>
-          <h1 className="h3 fw-bold mb-1">떠나기 전에 확인하세요</h1>
-          <p className="text-muted mb-0">제주데이터허브 공공데이터로 해수욕장 수질, 한라산 둘레길, 교통 안전, 숙박을 확인해요.</p>
+    <>
+      <PageBanner
+        img="/images/jeju-stonewall.jpg" pos="50% 70%" eyebrow="여행 정보" title="떠나기 전에 확인하세요"
+        sub="제주데이터허브 공공데이터로 한라산 둘레길, 교통 안전, 숙박을 확인해요."
+      />
+      <Container className="pt-4">
+        <div className="jp-tabs" style={{ overflowX: 'auto' }}>
+          {TABS.map((t) => (
+            <button key={t.id} type="button" className={`jp-tab ${tab === t.id ? 'on' : ''}`} style={{ whiteSpace: 'nowrap' }} onClick={() => setTab(t.id)}>
+              <i className={`bi bi-${t.icon} me-1`} />{t.label}
+            </button>
+          ))}
         </div>
-      </div>
 
-      <div className="jp-tabs" style={{ overflowX: 'auto' }}>
-        {TABS.map((t) => (
-          <button key={t.id} type="button" className={`jp-tab ${tab === t.id ? 'on' : ''}`} style={{ whiteSpace: 'nowrap' }} onClick={() => setTab(t.id)}>
-            <i className={`bi bi-${t.icon} me-1`} />{t.label}
-          </button>
-        ))}
-      </div>
-
-      {tab === 'beach' && <BeachTab />}
-      {tab === 'trail' && <TrailTab />}
-      {tab === 'traffic' && <TrafficTab />}
-      {tab === 'lodging' && <LodgingTab />}
-    </Container>
+        {tab === 'trail' && <TrailTab />}
+        {tab === 'traffic' && <TrafficTab />}
+        {tab === 'lodging' && <LodgingTab />}
+      </Container>
+    </>
   )
 }

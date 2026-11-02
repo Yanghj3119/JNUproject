@@ -4,12 +4,14 @@ import { Container, Nav, Navbar, Toast, ToastContainer } from 'react-bootstrap'
 import { NAV_ITEMS } from '../router'
 import { useAppStore } from '../store/useAppStore'
 
+// 로고: 오름의 부드러운 곡선 + 제주 바다의 물결 + 감귤빛 점 (심플한 도형만 사용)
 const Mark = () => (
   <svg className="jp-mark" viewBox="0 0 64 64" aria-hidden="true">
-    <rect width="64" height="64" rx="14" fill="#0f1a20" />
-    <path d="M8 40 24 22l9 10 7-8 16 16z" fill="#0e6f7a" />
-    <path d="M8 48c8-5 14-5 22 0s14 5 26 0v8H8z" fill="#7fd0d8" />
-    <circle cx="46" cy="16" r="5" fill="#c9702a" />
+    <rect width="64" height="64" rx="16" fill="#0f1a20" />
+    <path d="M9 41C16 24 25 19 32 19s16 5 23 22z" fill="#2563eb" />
+    <path d="M9 41C16 24 25 19 32 19" fill="none" stroke="#93c5fd" strokeWidth="2" strokeLinecap="round" opacity=".7" />
+    <path d="M9 49q5.75-5 11.5 0t11.5 0 11.5 0 11.5 0" fill="none" stroke="#7dd3fc" strokeWidth="3" strokeLinecap="round" />
+    <circle cx="47" cy="15" r="4.5" fill="#f59e0b" />
   </svg>
 )
 
@@ -28,7 +30,7 @@ export default function RootLayout() {
     <div className="jp-shell">
       <Navbar expand="md" sticky="top" className="jp-nav">
         <Container>
-          <Navbar.Brand as={Link} to="/" className="jp-brand"><Mark />제주픽</Navbar.Brand>
+          <Navbar.Brand as={Link} to="/" className="jp-brand" aria-label="제주픽 홈으로" title="홈으로"><Mark /><span>제주픽</span></Navbar.Brand>
           <Navbar.Toggle aria-controls="jp-menu" />
           <Navbar.Collapse id="jp-menu">
             <Nav className="ms-auto align-items-md-center gap-md-1">

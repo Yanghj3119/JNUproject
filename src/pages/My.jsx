@@ -4,6 +4,7 @@ import { Col, Container, Row } from 'react-bootstrap'
 import { useAppStore } from '../store/useAppStore'
 import { isSupabaseReady } from '../lib/supabase'
 import KakaoMap from '../components/KakaoMap'
+import PageBanner from '../components/PageBanner'
 import Status from '../components/Status'
 
 const dateOf = (iso) => new Date(iso).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
@@ -65,28 +66,22 @@ export default function My() {
   }
   if (authReady && !user) {
     return (
-      <Container className="text-center py-5">
-        <i className="bi bi-bookmark fs-1 text-jp" />
-        <h1 className="h4 fw-bold mt-3">로그인하고 내 여행을 모아 보세요</h1>
-        <p className="text-muted">담아 둔 위시리스트와 AI가 만든 코스를 언제든 다시 볼 수 있어요.</p>
-        <Link to="/login" className="btn btn-primary px-4">로그인 · 회원가입</Link>
-      </Container>
+      <PageBanner img="/images/jeju-chairs.jpg" pos="50% 55%" eyebrow="내 보관함" title="로그인하고 내 여행을 모아 보세요"
+        sub="담아 둔 위시리스트와 AI가 만든 코스를 언제든 다시 볼 수 있어요.">
+        <Link to="/login" className="btn btn-light px-4">로그인 · 회원가입</Link>
+      </PageBanner>
     )
   }
 
   const name = user?.user_metadata?.name || user?.email?.split('@')[0]
 
   return (
-    <Container>
-      <div className="jp-pagehead">
-        <div>
-          <div className="jp-eyebrow mb-1">내 보관함</div>
-          <h1 className="h3 fw-bold mb-1">{name}님의 여행</h1>
-          <p className="text-muted mb-0">위시리스트 {favorites.length}개 · 저장한 경로 {routes.length}개</p>
-        </div>
-        <Link to="/agent" className="btn btn-primary"><i className="bi bi-stars me-1" />AI에게 코스 물어보기</Link>
-      </div>
-
+    <>
+    <PageBanner img="/images/jeju-chairs.jpg" pos="50% 55%" eyebrow="내 보관함" title={`${name}님의 여행`}
+      sub={`위시리스트 ${favorites.length}개 · 저장한 경로 ${routes.length}개`}>
+      <Link to="/agent" className="btn btn-light"><i className="bi bi-stars me-1" />AI에게 코스 물어보기</Link>
+    </PageBanner>
+    <Container className="pt-4">
       <div className="jp-tabs" style={{ maxWidth: 360 }}>
         <button type="button" className={`jp-tab ${tab === 'wish' ? 'on' : ''}`} onClick={() => setTab('wish')}>위시리스트</button>
         <button type="button" className={`jp-tab ${tab === 'routes' ? 'on' : ''}`} onClick={() => setTab('routes')}>내 경로</button>
@@ -119,5 +114,6 @@ export default function My() {
         </>
       )}
     </Container>
+    </>
   )
 }
