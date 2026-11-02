@@ -16,6 +16,29 @@ async function loadStops({ name = '', limit = 20 } = {}) {
   return toList(body).map((s) => ({ id: s.nodeid, name: s.nodenm, no: s.nodeno, lat: Number(s.gpslati), lng: Number(s.gpslong) }))
 }
 
+// 제주 전체 정류소 (약 4,300곳) — TAGO 좌표 검색(getCrdntPrxmtSttnList)은 제주에서 결과가 비어, 한 번 받아 두고 직접 거리순으로 고른다
+async function loadAllStops() {
+  const url = `${TAGO}/BusSttnInfoInqireService/getSttnNoList`
+  const q = { _type: 'json', cityCode: CITY, numOfRows: 1000 }
+  const first = await callApi(url, { ...q, pageNo: 1 })
+  const rest = await Promise.all(Array.from({ length: Math.min(Math.ceil((Number(first.totalCount) || 0) / 1000) - 1, 9) }, (_, i) => callApi(url, { ...q, pageNo: i + 2 }).then(toList)))
+  return [...toList(first), ...rest.flat()]
+    .map((s) => ({ id: s.nodeid, name: s.nodenm, no: s.nodeno, lat: Number(s.gpslati), lng: Number(s.gpslong) }))
+    .filter((s) => s.id && s.lat > 33 && s.lng > 126)
+}
+
+// 좌표 주변 정류소 (가까운 순) — 내 주변 찾기용
+export async function nearStops({ lat, lng, limit = 8 } = {}) {
+  const la = Number(lat), lo = Number(lng)
+  if (!(la && lo)) throw new Error('lat, lng 가 필요해요')
+  const all = await cached('stops:all', 24 * 3600e3, loadAllStops)
+  const kx = Math.cos((la * Math.PI) / 180) // 경도 1도의 상대 길이
+  return all
+    .map((s) => ({ ...s, dist: Math.round(111320 * Math.hypot(s.lat - la, (s.lng - lo) * kx)) }))
+    .sort((a, b) => a.dist - b.dist)
+    .slice(0, limit)
+}
+
 // 정류소에 곧 도착하는 버스 (몇 분 뒤 · 몇 정거장 전 · 저상버스 여부) — 가까운 순
 export async function getArrivals({ nodeId } = {}) {
   if (!nodeId) throw new Error('nodeId 가 필요해요')
@@ -74,6 +97,34 @@ async function loadFlights({ direction = 'arr', city = '', date = '' } = {}) {
     .sort((a, b) => a.time.localeCompare(b.time))
   return { date: day, direction, count: flights.length, flights }
 }
+
+// ── 여객선 (국토교통부 TAGO 국내선박운항정보) ─────────────────
+// 이 데이터에는 제주 본섬·추자도·가파도·마라도 항로가 있고, 우도·비양도 도항선은 들어 있지 않다.
+const SHIP = 'https://apis.data.go.kr/1613000/DmstcShipNvgInfo'
+export const FERRY_PORTS = {
+  제주항: { ids: ['SEA10090'], note: '추자도·완도·진도·녹동·목포행' },
+  제주국제: { ids: ['SEA97360'], note: '삼천포·목포행' },
+  운진항: { ids: ['SEA96030'], note: '가파도·마라도행 (모슬포)' },
+  송악산: { ids: ['SEA97720'], note: '마라도행 (산이수동)' },
+  추자도: { ids: ['SEA45110', 'SEA45131'], note: '제주·완도·진도행 (상추자·신양)' },
+  가파도: { ids: ['SEA45150'], note: '운진항행' },
+  마라도: { ids: ['SEA45170'], note: '송악산·운진항행' },
+}
+const hm = (v) => { const s = String(v ?? ''); return /^\d{12}$/.test(s) ? `${s.slice(8, 10)}:${s.slice(10)}` : '' }
+
+async function loadFerries({ port = '제주항', date = '' } = {}) {
+  const p = FERRY_PORTS[port]
+  if (!p) throw new Error(`port 는 ${Object.keys(FERRY_PORTS).join(' | ')} 중 하나`)
+  const day = /^\d{8}$/.test(date) ? date : kstToday()
+  const lists = await Promise.all(p.ids.map((id) =>
+    callApi(`${SHIP}/GetShipOpratInfoList`, { _type: 'json', depNodeId: id, depPlandTime: day, numOfRows: 100, pageNo: 1 }).then(toList)))
+  const sailings = lists.flat()
+    .map((r) => ({ ship: r.vihicleNm, from: r.depPlaceNm, to: r.arrPlaceNm, dep: hm(r.depPlandTime), arr: hm(r.arrPlandTime), fare: Number(r.charge) > 0 ? Number(r.charge) : null }))
+    .filter((r) => r.dep)
+    .sort((a, b) => a.dep.localeCompare(b.dep))
+  return { date: day, port, note: p.note, count: sailings.length, sailings }
+}
+export const getFerries = (args = {}) => cached(`ferries:${args.port ?? ''}:${args.date ?? ''}`, 10 * 60e3, () => loadFerries(args))
 
 // 정류소 목록은 1시간, 공항 스케줄은 10분 캐시 (도착·위치는 실시간이라 캐시하지 않는다)
 export const searchStops = (args = {}) => cached(`stops:${args.name ?? ''}:${args.limit ?? ''}`, 60 * 60e3, () => loadStops(args))

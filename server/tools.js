@@ -2,7 +2,7 @@
 import { searchPhotos, getPhotoInfo } from './photos.js'
 import { findNearby, resolvePlace, listSpots, CATEGORY } from './tour.js'
 import { PHOTO_THEMES, themesOf } from '../src/data/photoThemes.js'
-import { searchStops, getArrivals, getFlights } from './transit.js'
+import { searchStops, getArrivals, getFlights, getFerries } from './transit.js'
 import { getWeather } from './weather.js'
 import { checkAccessibility } from './access.js'
 import { getRelated } from './related.js'
@@ -123,6 +123,15 @@ export const tools = [
     },
   },
   {
+    name: 'get_ferry_schedule',
+    description: '제주 여객선의 오늘 운항 시간표(출발·도착 예정 시각, 선박, 요금)를 항구별로 조회한다. 제주항(추자도·완도·진도·목포행), 운진항(가파도·마라도행), 송악산(마라도행), 추자도, 가파도, 마라도, 제주국제 항을 지원한다. 우도·비양도 도항선은 데이터에 없으니 모른다고 말하고 성산항·종달항·한림항 매표소 확인을 안내한다. 기상에 따라 결항될 수 있다.',
+    input_schema: {
+      type: 'object',
+      properties: { port: { type: 'string', enum: ['제주항', '제주국제', '운진항', '송악산', '추자도', '가파도', '마라도'], description: '출발 항구' } },
+      required: ['port'],
+    },
+  },
+  {
     name: 'get_flight_schedule',
     description: '제주공항의 오늘 국내선 운항 스케줄(예정 시각)을 조회한다. 도착(arr) 또는 출발(dep)과 상대 공항 코드(GMP 김포, PUS 김해, ICN 인천 등)를 줄 수 있다. 지연·결항은 반영되지 않는다.',
     input_schema: {
@@ -232,6 +241,15 @@ export const runTool = {
     return {
       date: f.date, note: '예정 시각 기준이며 지연·결항은 반영되지 않아요', now_kst: now, total_today: f.count,
       next: f.flights.filter((x) => x.time >= now).slice(0, 8).map((x) => ({ flight: x.flight, airline: x.airline, from: x.from, to: x.to, dep: x.dep, arr: x.arr })),
+    }
+  },
+
+  get_ferry_schedule: async ({ port = '제주항' }) => {
+    const f = await getFerries({ port })
+    const now = new Date(Date.now() + 9 * 3600e3).toISOString().slice(11, 16)
+    return {
+      date: f.date, port: f.port, note: '예정 시각 기준이며 기상에 따라 결항될 수 있어요. 우도·비양도 도항선은 이 데이터에 없어요', now_kst: now, total_today: f.count,
+      next: f.sailings.filter((x) => x.dep >= now).slice(0, 10).map((x) => ({ ship: x.ship, from: x.from, to: x.to, dep: x.dep, arr: x.arr, fare_won: x.fare })),
     }
   },
 

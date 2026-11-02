@@ -202,3 +202,44 @@ export function BusTransit() {
 export function AirportTab() {
   return <Flights />
 }
+
+// 선박 탭: 항구별 오늘 여객선 운항 시간표
+const FERRY_PORTS = [
+  ['제주항', '추자도·완도·진도·목포'], ['운진항', '가파도·마라도'], ['송악산', '마라도'],
+  ['추자도', '제주·완도·진도'], ['가파도', '운진항'], ['마라도', '송악산·운진항'], ['제주국제', '삼천포·목포'],
+]
+
+export function FerryTab() {
+  const [port, setPort] = useState('운진항')
+  const { data, loading, error } = useAsync(() => fetchTransit('ferries', { port }), [port])
+  const now = new Date(Date.now() + 9 * 3600e3).toISOString().slice(11, 16)
+  return (
+    <>
+      <div className="d-flex flex-wrap gap-2 mb-2">
+        {FERRY_PORTS.map(([p, to]) => (
+          <button key={p} type="button" className={`jp-month ${port === p ? 'on' : ''}`} onClick={() => setPort(p)} title={`${to}행`}>{p}</button>
+        ))}
+      </div>
+      <p className="small text-muted">
+        출발 항구를 고르면 오늘 운항 예정 시간표가 나와요{data?.note ? ` (${data.note})` : ''}. 예정 시각이라 기상에 따라 결항될 수 있어요.
+        우도·비양도 도항선은 이 공공데이터에 없어요. 성산항·종달항·한림항에서 확인하세요.
+      </p>
+      <Status loading={loading} error={error} empty={!loading && !error && !data?.sailings?.length} emptyText="오늘 이 항구에서 출발하는 배 정보가 없어요" />
+      {data?.sailings?.length > 0 && (
+        <div className="table-responsive">
+          <table className="table table-sm align-middle">
+            <thead><tr><th>출발</th><th>도착</th><th>구간</th><th>선박</th><th className="text-end">요금</th></tr></thead>
+            <tbody>
+              {data.sailings.map((s, i) => (
+                <tr key={`${s.dep}-${s.to}-${i}`} className={s.dep < now ? 'text-muted' : ''}>
+                  <td className="fw-semibold">{s.dep}</td><td>{s.arr}</td><td>{s.from} → {s.to}</td><td>{s.ship}</td>
+                  <td className="text-end">{s.fare ? `${s.fare.toLocaleString()}원` : '-'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
+  )
+}

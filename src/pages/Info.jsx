@@ -6,14 +6,15 @@ import { useAsync } from '../lib/useAsync'
 import { findAddress, findPlace, mapSearchLink, mapToLink, mapWalkLink } from '../lib/kakaoGeo'
 import KakaoMap from '../components/KakaoMap'
 import PageBanner from '../components/PageBanner'
-import { BusTransit, AirportTab } from '../components/TransitTab'
+import { BusTransit, AirportTab, FerryTab } from '../components/TransitTab'
 import Status from '../components/Status'
 
-// 여행 정보: 대중교통(버스) · 공항 · 한라산 둘레길 · 숙박 (둘레길·숙박은 제주데이터허브, 버스·공항은 공공데이터포털)
+// 여행 정보: 대중교통(버스) · 공항 · 선박 · 한라산 둘레길 · 숙박 (둘레길·숙박은 제주데이터허브, 버스·공항은 공공데이터포털)
 // 좌표가 없는 데이터(둘레길·숙박)는 카카오 장소·주소 검색으로 위치를 찾아 지도에 표시한다.
 const TABS = [
   { id: 'bus', label: '대중교통', icon: 'bus-front' },
   { id: 'airport', label: '공항', icon: 'airplane' },
+  { id: 'ferry', label: '선박', icon: 'water' },
   { id: 'trail', label: '한라산 둘레길', icon: 'tree' },
   { id: 'lodging', label: '숙박', icon: 'building' },
 ]
@@ -168,7 +169,7 @@ export default function Info() {
     <>
       <PageBanner
         img="/images/jeju-stonewall.jpg" pos="50% 70%" eyebrow="여행 정보" title="떠나기 전에 확인하세요"
-        sub="버스 도착·위치, 공항 운항 스케줄, 한라산 둘레길, 숙박을 공공데이터로 확인하고 지도에서 위치를 볼 수 있어요."
+        sub="버스 도착·위치, 공항·여객선 운항 스케줄, 한라산 둘레길, 숙박을 공공데이터로 확인하고 지도에서 위치를 볼 수 있어요."
       />
       <Container className="pt-4">
         <div className="jp-tabs" style={{ overflowX: 'auto' }}>
@@ -182,6 +183,7 @@ export default function Info() {
         {tab === 'trail' && <TrailTab />}
         {tab === 'bus' && <BusTransit />}
         {tab === 'airport' && <AirportTab />}
+        {tab === 'ferry' && <FerryTab />}
         {tab === 'lodging' && <LodgingTab />}
       </Container>
     </>
