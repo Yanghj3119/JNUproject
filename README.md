@@ -49,6 +49,9 @@ Supabase 는 `supabase/schema.sql` 을 SQL Editor 에서 실행해 테이블을 
 
 > `server/photos.js`, `server/related.js` 의 일부 파라미터·필드명은 활용가이드로 실제 호출해 확인이 필요합니다. (/status 에서 실패하면 해당 파일 상단 주석 참고)
 
+## 이미지
+`public/images/` 의 홈 이미지 3장은 Pixabay 무료 이미지(Pixabay 콘텐츠 라이선스)를 웹용(가로 1800px, JPEG)으로 줄인 것입니다.
+
 ## 구조
 ```
 api/        Vercel 서버 함수 (/api/파일이름) — 얇은 껍데기, server/ 함수를 호출

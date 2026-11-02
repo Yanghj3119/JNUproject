@@ -58,7 +58,7 @@ export default function RootLayout() {
           <Link to="/status" className="text-decoration-none"><i className="bi bi-activity me-1" />연결 상태</Link>
         </Container>
         <Container className="mt-1 small opacity-75">
-          관광사진은 공공누리 유형에 따라 이용 조건이 있어요. 상업적 재사용 전에 출처 표기를 확인하세요.
+          관광사진은 공공누리 유형에 따라 이용 조건이 있어요. 상업적 재사용 전에 출처 표기를 확인하세요. · 홈 배경 이미지: <a href="https://pixabay.com" target="_blank" rel="noreferrer">Pixabay</a>
         </Container>
       </footer>
 
