@@ -8,11 +8,12 @@ export const kakaoKeyHint = KEY ? `…${KEY.slice(-4)}` : ''
 
 // 카카오맵 SDK 를 한 번만 불러온다
 let sdk
-function loadKakao() {
+export function loadKakao() {
   if (window.kakao?.maps?.LatLng) return Promise.resolve(window.kakao)
   sdk ??= new Promise((resolve, reject) => {
     const s = document.createElement('script')
-    s.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${KEY}&autoload=false`
+    // services: 장소·주소 검색(좌표 찾기)에 필요한 라이브러리
+    s.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${KEY}&autoload=false&libraries=services`
     s.onload = () => window.kakao.maps.load(() => resolve(window.kakao))
     s.onerror = () => {
       sdk = null

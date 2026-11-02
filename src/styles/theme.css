@@ -263,3 +263,12 @@ a.jp-tool:hover { transform: translateY(-3px); border-color: var(--jp-sea); box-
 .jp-kakao-btn:disabled { opacity: 0.5; }
 .jp-or { display: flex; align-items: center; gap: 0.8rem; margin: 1.1rem 0 0.9rem; color: var(--jp-muted); font-size: 0.8rem; }
 .jp-or::before, .jp-or::after { content: ''; flex: 1; height: 1px; background: var(--jp-line); }
+
+/* 여행 정보: 눌러서 선택하는 카드·행 */
+button.jp-pick { width: 100%; text-align: left; cursor: pointer; background: var(--jp-surface); }
+button.jp-pick:hover { border-color: var(--jp-sea); transform: translateY(-2px); }
+button.jp-pick.on { border-color: var(--jp-ink); box-shadow: inset 0 0 0 1px var(--jp-ink); }
+.jp-clickable tbody tr { cursor: pointer; }
+.jp-place-head { display: flex; align-items: center; gap: 0.9rem; width: 100%; background: none; border: 0; padding: 0; text-align: left; color: inherit; }
+.jp-place-pick { padding: 0.6rem; }
+.jp-place-pick.on { border-color: var(--jp-ink); }

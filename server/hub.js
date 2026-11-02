@@ -112,7 +112,7 @@ export async function listHubPlaces({ kind, name = '', limit = 1000 }) {
 export async function searchLodging({ name = '', type = '', status = '영업/정상', limit = 30 } = {}) {
   const rows = await callHub('lodging', { companyName: name, bizSmallType: type, openStatus: status })
   return clip(rows, limit).map((l) => ({
-    name: l.companyName, type: l.bizSmallType, rooms: num(l.roomCount) || undefined,
+    name: l.companyName, type: l.bizSmallType || l.bizLargeType || '', rooms: num(l.roomCount) || undefined,
     status: l.openStatus, addr: l.addressDoro || l.addressJibun,
   }))
 }
