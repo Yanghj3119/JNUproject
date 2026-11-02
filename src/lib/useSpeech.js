@@ -20,6 +20,19 @@ export function defaultSpeechLang() {
   return SPEECH_LANGS.find((l) => n.toLowerCase().startsWith(l.code.slice(0, 2)))?.code ?? 'ko-KR'
 }
 
+// 음성 인식 오류 코드 → [안내 문구, 토스트 색]. 알림이 필요 없는 코드는 null
+export function speechErrorMessage(code) {
+  if (code === 'not-allowed' || code === 'service-not-allowed') return ['마이크 사용이 막혀 있어요. 주소창 왼쪽 자물쇠 → 마이크를 허용해 주세요.', 'warning']
+  if (code === 'no-speech') return ['말소리를 듣지 못했어요. 다시 눌러 말씀해 주세요.', 'secondary']
+  if (code === 'network') return ['음성 인식 서버에 연결하지 못했어요.', 'warning']
+  if (code === 'unsupported') return ['이 브라우저는 음성 입력을 지원하지 않아요. 크롬을 사용해 보세요.', 'warning']
+  return null
+}
+
+export function saveSpeechLang(code) {
+  try { localStorage.setItem('jp-speech-lang', code) } catch { /* 저장 실패는 무시 */ }
+}
+
 // onInterim(text): 말하는 도중 실시간 문장 / onFinal(text): 말이 끝났을 때 최종 문장 / onError(code): 오류 코드
 export function useSpeech({ lang, onInterim, onFinal, onError }) {
   const rec = useRef(null)

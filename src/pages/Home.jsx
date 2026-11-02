@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Col, Container, Row } from 'react-bootstrap'
 import { fetchPhotos } from '../api/client'
+import { useAppStore } from '../store/useAppStore'
+import { SPEECH_LANGS, defaultSpeechLang, saveSpeechLang, speechErrorMessage, useSpeech } from '../lib/useSpeech'
 import { useAsync } from '../lib/useAsync'
 import { shuffleDiverse } from '../lib/format'
 import PhotoCard from '../components/PhotoCard'
@@ -61,7 +63,23 @@ export default function Home() {
   }, [])
 
   const ask = (text) => nav(`/agent?q=${encodeURIComponent(text)}`)
-  const submit = (e) => { e.preventDefault(); if (q.trim()) ask(q.trim()) }
+  const submit = (e) => { e.preventDefault(); if (speech.listening) speech.stop(); if (q.trim()) ask(q.trim()) }
+
+  // 음성 질문: 말이 끝나면 AI 가이드 페이지로 넘어가 바로 답을 받는다
+  const toast = useAppStore((s) => s.toast)
+  const [lang, setLang] = useState(defaultSpeechLang)
+  const speech = useSpeech({
+    lang,
+    onInterim: setQ,
+    onFinal: (t) => { setQ(''); ask(t) },
+    onError: (code) => {
+      setQ('')
+      const m = speechErrorMessage(code)
+      if (m) toast(m[0], m[1])
+    },
+  })
+  const pickLang = (code) => { setLang(code); saveSpeechLang(code) }
+  const cur = SPEECH_LANGS.find((l) => l.code === lang)
 
   return (
     <>
@@ -79,10 +97,24 @@ export default function Home() {
           </p>
 
           <form className="jp-ask-box" onSubmit={submit}>
-            <input className="form-control" placeholder="예) 가족과 2박 3일, 비 와도 괜찮은 코스" value={q}
+            <input className="form-control" placeholder={speech.listening ? cur?.hint : '예) 가족과 2박 3일, 비 와도 괜찮은 코스'} value={q}
               onChange={(e) => setQ(e.target.value)} aria-label="AI 가이드에게 질문" />
+            {speech.supported && (
+              <>
+                <select className="form-select jp-lang" value={lang} onChange={(e) => pickLang(e.target.value)} disabled={speech.listening} aria-label="음성 인식 언어" title="음성 인식 언어">
+                  {SPEECH_LANGS.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
+                </select>
+                <button type="button" className={`btn btn-outline-sea jp-mic ${speech.listening ? 'on' : ''}`} onClick={speech.listening ? speech.stop : speech.start}
+                  aria-label={speech.listening ? '음성 입력 멈추기' : '음성으로 질문하기'} title={speech.listening ? '멈추기' : '말로 질문하기'}>
+                  <i className={`bi bi-mic${speech.listening ? '-fill' : ''}`} />
+                </button>
+              </>
+            )}
             <button className="btn btn-primary" type="submit"><i className="bi bi-stars me-1" />물어보기</button>
           </form>
+          {speech.supported && (
+            <div className="jp-ask-note"><i className="bi bi-mic me-1" />{speech.listening ? `듣고 있어요 · ${cur?.label}` : `마이크 버튼을 누르고 ${cur?.label}(으)로 말해 보세요 · 한국어 · English · 中文 · 日本語`}</div>
+          )}
 
           <div className="jp-prompts">
             {PROMPTS.map((p) => <button key={p} type="button" className="jp-prompt" onClick={() => ask(p)}>{p}</button>)}

@@ -6,7 +6,7 @@ import KakaoMap from '../components/KakaoMap'
 import PageBanner from '../components/PageBanner'
 import ShareButton from '../components/ShareButton'
 import { routeShareUrl } from '../lib/share'
-import { SPEECH_LANGS, defaultSpeechLang, useSpeech } from '../lib/useSpeech'
+import { SPEECH_LANGS, defaultSpeechLang, saveSpeechLang, speechErrorMessage, useSpeech } from '../lib/useSpeech'
 
 const TOOL_LABEL = {
   search_photos: ['images', '사진 검색'],
@@ -132,15 +132,13 @@ export default function Agent() {
     onFinal: (t) => { setText(''); sendMessage(t) },
     onError: (code) => {
       setText('')
-      if (code === 'not-allowed' || code === 'service-not-allowed') toast('마이크 사용이 막혀 있어요. 주소창 왼쪽 자물쇠 → 마이크를 허용해 주세요.', 'warning')
-      else if (code === 'no-speech') toast('말소리를 듣지 못했어요. 다시 눌러 말씀해 주세요.', 'secondary')
-      else if (code === 'network') toast('음성 인식 서버에 연결하지 못했어요.', 'warning')
-      else if (code === 'unsupported') toast('이 브라우저는 음성 입력을 지원하지 않아요. 크롬을 사용해 보세요.', 'warning')
+      const m = speechErrorMessage(code)
+      if (m) toast(m[0], m[1])
     },
   })
   const pickLang = (code) => {
     setLang(code)
-    try { localStorage.setItem('jp-speech-lang', code) } catch { /* 저장 실패는 무시 */ }
+    saveSpeechLang(code)
   }
   const hint = SPEECH_LANGS.find((l) => l.code === lang)?.hint
 

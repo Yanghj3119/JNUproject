@@ -10,7 +10,15 @@ import ShareButton from '../components/ShareButton'
 import { routeShareUrl } from '../lib/share'
 import Status from '../components/Status'
 
-const dateOf = (iso) => new Date(iso).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
+const MAX_PICK = 8 // 코스 하나에 넣을 수 있는 최대 장소 수 (propose_route 한도와 같다)
+
+// 위시리스트를 AI 가이드에게 넘기는 질문. 사진 제목("다랑쉬오름의 아침")이 섞여 있으니 실제 장소 확인도 부탁한다.
+const wishlistPrompt = (items) =>
+  `내 위시리스트에 담은 곳이야: ${items.map((f) => f.title).join(', ')}. ` +
+  '이 장소들을 모두 넣어서 가까운 순서로 방문 코스를 만들어줘. 사진 제목처럼 보이는 이름은 실제 장소를 확인해서 넣고, 못 찾는 곳은 말로 알려줘. ' +
+  '날씨와 이동 거리도 함께 알려주고, 하루에 가기 너무 멀면 일차별로 나눠서 제안해줘.'
+
+const dateOf =(iso) => new Date(iso).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
 
 function RouteCard({ route }) {
   const del = useAppStore((s) => s.deleteRoute)
@@ -61,6 +69,16 @@ export default function My() {
   const toggle = useAppStore((s) => s.toggleFavorite)
   const [tab, setTab] = useState('wish') // 'wish' | 'routes'
 
+  // AI 코스에 넘길 위시리스트: 기본은 앞에서 8곳, 카드의 체크박스로 빼거나 다시 넣는다
+  const [off, setOff] = useState(() => new Set())
+  const chosen = favorites.filter((f) => !off.has(f.id)).slice(0, MAX_PICK)
+  const chosenIds = new Set(chosen.map((f) => f.id))
+  const togglePick = (f) => {
+    if (chosenIds.has(f.id)) setOff((s) => new Set(s).add(f.id))
+    else if (chosen.length < MAX_PICK) setOff((s) => { const n = new Set(s); n.delete(f.id); return n })
+  }
+  const planLink = chosen.length ? `/agent?q=${encodeURIComponent(wishlistPrompt(chosen))}` : '/agent'
+
   const linkOf = (f) => (f.source === 'photo'
     ? `/photo/${encodeURIComponent(f.item_id)}?${new URLSearchParams({ title: f.title, img: f.image ?? '' })}`
     : `/explore?q=${encodeURIComponent(f.title)}`)
@@ -83,7 +101,7 @@ export default function My() {
     <>
     <PageBanner img="/images/jeju-chairs.jpg" pos="50% 55%" eyebrow="내 보관함" title={`${name}님의 여행`}
       sub={`위시리스트 ${favorites.length}개 · 저장한 경로 ${routes.length}개`}>
-      <Link to="/agent" className="btn btn-light"><i className="bi bi-stars me-1" />AI에게 코스 물어보기</Link>
+      <Link to={planLink} className="btn btn-light"><i className="bi bi-stars me-1" />{chosen.length ? `위시리스트 ${chosen.length}곳으로 코스 만들기` : 'AI에게 코스 물어보기'}</Link>
     </PageBanner>
     <Container className="pt-4">
       <div className="jp-tabs" style={{ maxWidth: 360 }}>
@@ -94,6 +112,15 @@ export default function My() {
       {tab === 'wish' ? (
         <>
           <Status loading={favLoading} empty={!favLoading && !favorites.length} emptyText="아직 담은 곳이 없어요. 사진 탐색에서 하트를 눌러 보세요." />
+          {favorites.length > 0 && (
+            <div className="d-flex flex-wrap align-items-center gap-2 mb-3 p-3 rounded-3 border bg-white">
+              <div className="flex-grow-1 small">
+                <div className="fw-semibold"><i className="bi bi-check2-square me-1" />코스에 넣을 곳 {chosen.length}/{Math.min(favorites.length, MAX_PICK)}</div>
+                <div className="text-muted">카드의 체크를 눌러 빼거나 넣을 수 있어요. 최대 {MAX_PICK}곳까지 한 코스로 만들어요.</div>
+              </div>
+              <Link to={planLink} className={`btn btn-primary ${chosen.length ? '' : 'disabled'}`}><i className="bi bi-stars me-1" />AI에게 이 곳들로 코스 만들기</Link>
+            </div>
+          )}
           <Row xs={1} sm={2} lg={4} className="g-3">
             {favorites.map((f) => (
               <Col key={f.id}>
@@ -105,7 +132,11 @@ export default function My() {
                   <button type="button" className="jp-heart on" aria-label="위시리스트에서 빼기" onClick={() => toggle({ source: f.source, id: f.item_id, title: f.title })}>
                     <i className="bi bi-heart-fill" />
                   </button>
-                  <div className="jp-photo-body fw-semibold text-truncate">{f.title}</div>
+                  <label className="jp-photo-body fw-semibold d-flex align-items-center gap-2 mb-0" style={{ cursor: 'pointer' }}>
+                    <input type="checkbox" className="form-check-input mt-0 flex-none" checked={chosenIds.has(f.id)} onChange={() => togglePick(f)}
+                      disabled={!chosenIds.has(f.id) && chosen.length >= MAX_PICK} aria-label={`${f.title} 코스에 넣기`} />
+                    <span className="text-truncate">{f.title}</span>
+                  </label>
                 </div>
               </Col>
             ))}
