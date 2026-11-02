@@ -42,7 +42,7 @@ function RouteCard({ route }) {
       <div className="small mt-2 text-muted">{stops.map((s) => s.name).join(' → ')}</div>
       {open && (
         <div className="mt-3">
-          <div className="jp-route-map rounded-3 overflow-hidden"><KakaoMap route={stops} /></div>
+          <div className="jp-route-map rounded-3 overflow-hidden"><KakaoMap route={stops} profile="driving" /></div>
           {stops.map((s, i) => (
             <div key={`${s.id}-${i}`} className="jp-stop">
               <span className="n">{i + 1}</span>

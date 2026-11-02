@@ -8,7 +8,7 @@ const ROUTE_HISTORY_KEY = 'jp-route-history'
 function loadRouteHistory() {
   try {
     const list = JSON.parse(localStorage.getItem(ROUTE_HISTORY_KEY) || '[]')
-    return Array.isArray(list) ? list.filter((e) => e?.route?.stops?.length).slice(0, ROUTE_HISTORY_MAX) : []
+    return Array.isArray(list) ? list.filter((e) => e?.route?.stops?.length || e?.places?.length).slice(0, ROUTE_HISTORY_MAX) : []
   } catch { return [] }
 }
 function saveRouteHistory(list) {
@@ -128,14 +128,27 @@ export const useAppStore = create((set, get) => ({
     try {
       const { answer, steps, route } = await askAgent(text, history)
       set({ messages: [...get().messages, { role: 'assistant', text: answer, steps, route }] })
+      // 지도에 보여 줄 최신 정보: 코스가 있으면 코스, 없으면 AI가 확인한 주변 장소들
+      const base = { id: `${Date.now()}`, at: new Date().toISOString(), question: text, summary: answer }
+      let entry = null
       if (route?.stops?.length) {
-        const entry = { id: `${Date.now()}`, at: new Date().toISOString(), question: text, summary: answer, route: { ...route, stops: route.stops.map(({ image: _i, ...s }) => s) } }
+        entry = { ...base, kind: 'route', route: { ...route, stops: route.stops.map(({ image: _i, ...s }) => s) } }
+      } else {
+        const seen = new Set()
+        const places = (steps ?? []).flatMap((s) => s.pins ?? []).filter((p) => !seen.has(p.name) && seen.add(p.name)).slice(0, 20)
+        if (places.length) {
+          const a = (steps ?? []).find((s) => s.pins?.length)?.args ?? {}
+          const where = a.place_name || a.near || a.stop_name || a.keyword
+          entry = { ...base, kind: 'places', title: where ? `${where} 주변 장소` : `${text.slice(0, 18)} 관련 장소`, places }
+        }
+      }
+      if (entry) {
         const list = [entry, ...get().routeHistory].slice(0, ROUTE_HISTORY_MAX)
         set({ routeHistory: list })
         saveRouteHistory(list)
       }
       if (supabase && get().user) { // 로그인했으면 대화 기록 저장 (실패해도 화면에는 영향 없음)
-        const tools = (steps ?? []).map(({ result: _r, ...s }) => s) // 도구 결과 미리보기는 저장하지 않는다
+        const tools = (steps ?? []).map(({ result: _r, pins: _p, ...s }) => s) // 도구 결과 미리보기·핀은 저장하지 않는다
         supabase.from('chat_logs').insert({ question: text, answer, tools }).then(() => {})
       }
     } catch (e) {

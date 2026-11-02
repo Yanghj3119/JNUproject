@@ -31,7 +31,7 @@ export default function SharedRoute() {
       <Container className="pt-4">
         <Row className="g-3">
           <Col lg={7}>
-            <div className="jp-route-map rounded-3 overflow-hidden" style={{ height: 420 }}><KakaoMap route={route.stops} /></div>
+            <div className="jp-route-map rounded-3 overflow-hidden" style={{ height: 420 }}><KakaoMap route={route.stops} profile="driving" /></div>
           </Col>
           <Col lg={5}>
             <div className="jp-panel">

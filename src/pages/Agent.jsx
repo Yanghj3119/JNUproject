@@ -42,10 +42,10 @@ const MULTI = [
 const timeOf = (iso) => new Date(iso).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
 
 // 도구 결과 미리보기 — 목록이면 한 건씩 한 줄로, 그 밖에는 "항목: 값"으로 보여 준다
-const HIDE = new Set(['lat', 'lng', 'id', 'url', 'contentId', 'routeId', 'nodeId'])
+const HIDE = new Set(['lat', 'lng', 'id', 'url', 'contentId', 'routeId', 'nodeId', 'type'])
 const LABEL_KEYS = ['title', 'name', 'route', 'flight', 'ship', 'stopName', 'keyword', 'place']
 const KEY_KO = {
-  addr: '주소', km_from_base: '기준에서(km)', km: '거리(km)', dist: '거리(m)', leg_km: '이전에서(km)', total_km: '총(km)', note: '메모',
+  addr: '주소', km_from_base: '기준에서(km)', km: '거리(km)', dist: '거리(m)', dist_m: '거리(m)', leg_km: '이전에서(km)', total_km: '총(km)', note: '메모',
   minutes: '분 뒤', stops_away: '정거장 전', low_floor: '저상', temp: '기온', sky: '하늘', pop: '강수확률', rain: '강수', wind: '바람',
   sunrise: '일출', sunset: '일몰', dep: '출발', arr: '도착', from: '출발지', to: '도착지', fare_won: '요금(원)', date: '날짜',
   total_today: '오늘 전체', now_kst: '현재', airline: '항공사', category: '분류', themes: '테마', course: '코스', start: '시점', end: '종점',
@@ -71,16 +71,9 @@ function ResultRow({ item }) {
 }
 
 function StepDetail({ step }) {
-  const args = Object.entries(step.args ?? {}).filter(([, v]) => v !== '' && v != null)
   const r = step.result
   return (
     <div className="jp-step-detail">
-      {args.length > 0 && (
-        <div className="mb-2">
-          <div className="small fw-semibold">AI가 넣은 값</div>
-          {args.map(([k, v]) => <div key={k} className="small text-muted">{ko(k)}: {typeof v === 'object' ? JSON.stringify(v) : String(v)}</div>)}
-        </div>
-      )}
       <div className="small fw-semibold">받아온 결과{step.error ? ' (오류)' : ''}</div>
       {step.error && <div className="small text-danger">{step.error}</div>}
       {Array.isArray(r) && (r.length ? r.map((it, i) => <ResultRow key={i} item={it} />) : <div className="small text-muted">결과가 없어요</div>)}
@@ -90,11 +83,54 @@ function StepDetail({ step }) {
   )
 }
 
-function RoutePanel({ route, summary, history = [], pick = 0, onPick }) {
+const entryTitle = (h) => (h.kind === 'places' ? h.title : h.route.title)
+
+// 최근 추천 기록 중 하나를 고르는 상자 (기록이 2개 이상일 때)
+function HistoryPicker({ history, pick, onPick }) {
+  if (history.length < 2) return null
+  return (
+    <select className="form-select form-select-sm mb-2" value={pick} onChange={(e) => onPick?.(Number(e.target.value))} aria-label="최근 추천 고르기">
+      {history.map((h, i) => <option key={h.id} value={i}>{i === 0 ? '최신 · ' : ''}{h.kind === 'places' ? '장소 · ' : '코스 · '}{entryTitle(h)} ({timeOf(h.at)})</option>)}
+    </select>
+  )
+}
+
+// AI가 확인한 주변 장소들(코스가 아닌 답변)을 핀으로 보여 준다
+function PlacesPanel({ entry, history, pick, onPick }) {
+  const [selId, setSelId] = useState(null)
+  const pins = entry.places.map((p) => ({ id: p.name, title: p.name, lat: p.lat, lng: p.lng, type: 'places' }))
+  return (
+    <div className="jp-route">
+      <div className="jp-route-map"><KakaoMap key={entry.id} spots={pins} selectedId={selId} onSelect={(p) => setSelId(p?.id ?? null)} /></div>
+      <div className="p-3">
+        <HistoryPicker history={history} pick={pick} onPick={onPick} />
+        <h2 className="h5 fw-bold mb-0">{entry.title}</h2>
+        <div className="small text-muted">AI가 확인한 {entry.places.length}곳 · 누르면 지도에서 강조돼요</div>
+        <div className="mt-2">
+          {entry.places.map((p, i) => (
+            <button key={p.name} type="button" className={`jp-stop w-100 text-start bg-transparent border-0 ${selId === p.name ? 'jp-stop-on' : ''}`} onClick={() => setSelId(p.name)}>
+              <span className="n">{i + 1}</span>
+              <div className="min-w-0">
+                <div className="fw-semibold">{p.name}</div>
+                <div className="leg">{p.addr}{p.dist != null ? ` · ${p.dist >= 1000 ? `${Math.round(p.dist / 100) / 10}km` : `${p.dist}m`}` : ''}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function RoutePanel({ entry, history = [], pick = 0, onPick }) {
   const saveRoute = useAppStore((s) => s.saveRoute)
   const user = useAppStore((s) => s.user)
   const [saved, setSaved] = useState(null) // 저장한 코스 제목
+  const [road, setRoad] = useState(null) // 실제 도로 기준 거리·시간 (불러오기 전·실패 시 null)
+  const route = entry?.route
+  const summary = entry?.summary
 
+  if (entry?.kind === 'places') return <PlacesPanel entry={entry} history={history} pick={pick} onPick={onPick} />
   if (!route) {
     return (
       <div className="jp-route">
@@ -110,17 +146,15 @@ function RoutePanel({ route, summary, history = [], pick = 0, onPick }) {
   const isSaved = saved === route.title
   return (
     <div className="jp-route">
-      <div className="jp-route-map"><KakaoMap key={history[pick]?.id ?? route.title} route={route.stops} /></div>
+      <div className="jp-route-map"><KakaoMap key={history[pick]?.id ?? route.title} route={route.stops} profile="driving" onRoad={setRoad} /></div>
       <div className="p-3">
-        {history.length > 1 && (
-          <select className="form-select form-select-sm mb-2" value={pick} onChange={(e) => onPick?.(Number(e.target.value))} aria-label="최근 추천 코스 고르기">
-            {history.map((h, i) => <option key={h.id} value={i}>{i === 0 ? '최신 · ' : ''}{h.route.title} ({timeOf(h.at)})</option>)}
-          </select>
-        )}
+        <HistoryPicker history={history} pick={pick} onPick={onPick} />
         <div className="d-flex justify-content-between align-items-start gap-2">
           <div>
             <h2 className="h5 fw-bold mb-0">{route.title}</h2>
-            <div className="small text-muted">{route.stops.length}곳 · 총 {route.total_km}km (직선거리 기준)</div>
+            <div className="small text-muted">
+              {route.stops.length}곳 · {road ? `도로 기준 총 ${road.km}km · 차로 약 ${road.min}분` : `총 ${route.total_km}km (직선거리 기준)`}
+            </div>
           </div>
           <div className="d-flex gap-1 flex-shrink-0">
             <ShareButton getContent={() => ({
@@ -274,7 +308,7 @@ export default function Agent() {
           </form>
         </div>
 
-        <RoutePanel route={shown?.route} summary={shown?.summary} history={routeHistory} pick={pick} onPick={setPick} />
+        <RoutePanel entry={shown} history={routeHistory} pick={pick} onPick={setPick} />
       </div>
     </Container>
     </>

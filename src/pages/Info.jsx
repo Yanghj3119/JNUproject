@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Col, Container, Row } from 'react-bootstrap'
 import { fetchHub } from '../api/client'
 import { useAsync } from '../lib/useAsync'
+import { TRAIL_POINTS } from '../data/trailPoints'
 import { findAddress, findPlace, mapSearchLink, mapToLink, mapWalkLink } from '../lib/kakaoGeo'
 import KakaoMap from '../components/KakaoMap'
 import PageBanner from '../components/PageBanner'
@@ -39,7 +40,10 @@ function TrailTab() {
   const cur = list.find((t) => t.course === selName) ?? list[0] ?? null // 처음엔 첫 코스를 보여 준다
 
   // 시점·종점 이름 → 카카오 장소 검색으로 좌표
-  const pts = useAsync(() => (cur ? Promise.all([findPlace(cur.start), findPlace(cur.end)]) : null), [cur?.course])
+  // 시점·종점은 미리 정리해 둔 좌표가 있으면 그것을, 없으면 카카오 장소 검색을 쓴다
+  const locate = (name) => (TRAIL_POINTS[name] ? Promise.resolve(TRAIL_POINTS[name]) : findPlace(name))
+  const pts = useAsync(() => (cur ? Promise.all([locate(cur.start), locate(cur.end)]) : null), [cur?.course])
+  const [road, setRoad] = useState(null)
   const [a, b] = pts.data ?? []
   const route = useMemo(() => [a && { lat: a.lat, lng: a.lng, name: cur?.start }, b && { lat: b.lat, lng: b.lng, name: cur?.end }].filter(Boolean), [a, b, cur])
 
@@ -68,13 +72,19 @@ function TrailTab() {
             <Row className="g-3">
               <Col lg={8}>
                 <div className="jp-route-map rounded-3 overflow-hidden border" style={{ height: 380 }}>
-                  {route.length ? <KakaoMap route={route} /> : (
+                  {route.length ? <KakaoMap route={route} profile="foot" onRoad={setRoad} /> : (
                     <div className="h-100 d-grid text-muted text-center p-4" style={{ placeItems: 'center' }}>
                       {pts.loading ? '위치를 찾는 중…' : '시점·종점 위치를 지도에서 찾지 못했어요. 오른쪽 버튼으로 카카오맵에서 직접 검색해 보세요.'}
                     </div>
                   )}
                 </div>
-                {route.length > 1 && <div className="small text-muted mt-2">지도의 선은 시점과 종점을 잇는 직선이에요. 실제 탐방로는 카카오맵 도보 길찾기로 확인하세요.</div>}
+                {route.length > 1 && (
+                  <div className="small text-muted mt-2">
+                    {road
+                      ? `지도의 선은 시점에서 종점까지 걷는 길(OpenStreetMap 기준)이에요. 도보 약 ${road.km}km · ${road.min >= 60 ? `${Math.floor(road.min / 60)}시간 ` : ''}${road.min % 60}분 안내값이라 실제 탐방로(${cur.km ?? '-'}km)와 다를 수 있어요. 탐방 전에 공식 안내를 확인하세요.`
+                      : '경로를 불러오는 중이에요. 불러오지 못하면 점선(직선)으로 보여요. 실제 탐방로는 카카오맵 도보 길찾기로 확인하세요.'}
+                  </div>
+                )}
               </Col>
               <Col lg={4}>
                 <div className="jp-panel">

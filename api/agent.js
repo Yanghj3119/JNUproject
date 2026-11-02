@@ -37,6 +37,16 @@ const preview = (v) => {
   return b
 }
 
+// 도구 결과에 좌표가 있는 장소(주변 명소·박물관·포토 스팟 등)는 화면 지도에 핀으로 보여 준다
+const inJeju = (x) => Number(x.lat) > 33 && Number(x.lat) < 34 && Number(x.lng) > 126 && Number(x.lng) < 127.1
+function pinsOf(result) {
+  if (!Array.isArray(result)) return []
+  return result.filter((x) => x && typeof x === 'object' && inJeju(x) && (x.title || x.name)).slice(0, 12).map((x) => ({
+    name: x.title ?? x.name, lat: Number(x.lat), lng: Number(x.lng), addr: x.addr ?? '',
+    dist: x.dist_m ?? (x.km_from_base != null ? Math.round(x.km_from_base * 1000) : undefined),
+  }))
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
   if (!process.env.ANTHROPIC_API_KEY) return res.status(500).json({ error: 'ANTHROPIC_API_KEY 가 없어요 (.env.local)' })
@@ -76,6 +86,7 @@ export default async function handler(req, res) {
           count: Array.isArray(result) ? result.length : result?.stops?.length,
           error: result?.error,
           result: preview(forModel),
+          pins: pinsOf(result),
         })
         results.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(forModel) })
       }

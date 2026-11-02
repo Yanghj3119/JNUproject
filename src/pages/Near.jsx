@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Col, Container, Row } from 'react-bootstrap'
 import { fetchNearby, fetchTransit, fetchWeather } from '../api/client'
 import { useAsync } from '../lib/useAsync'
 import { distLabel } from '../lib/format'
+import { findAddress, findPlace } from '../lib/kakaoGeo'
 import KakaoMap from '../components/KakaoMap'
 import PageBanner from '../components/PageBanner'
 import PlaceCard from '../components/PlaceCard'
@@ -18,10 +19,12 @@ const PRESETS = [
   { name: '서귀포 매일올레시장', lat: 33.2477, lng: 126.5636 },
 ]
 
+const inJeju = (p) => p.lat > 33 && p.lat < 34 && p.lng > 126 && p.lng < 127.1
+
 const GEO_ERR = {
-  1: '위치 권한이 거부됐어요. 브라우저 주소창의 자물쇠 아이콘에서 위치를 허용하거나, 아래 대표 위치를 골라 보세요.',
-  2: '현재 위치를 알 수 없어요. 아래 대표 위치를 골라 보세요.',
-  3: '위치 확인이 너무 오래 걸려요. 다시 시도하거나 대표 위치를 골라 보세요.',
+  1: '위치 권한이 거부됐어요. 주소창의 자물쇠 아이콘에서 위치를 허용하거나, 아래에 장소를 직접 입력하거나 대표 위치를 골라 보세요.',
+  2: '현재 위치를 알 수 없어요. 아래에 장소를 직접 입력하거나 대표 위치를 골라 보세요.',
+  3: '위치 확인이 너무 오래 걸려요. 다시 시도하거나, 장소를 직접 입력하거나 대표 위치를 골라 보세요.',
 }
 
 function StopRow({ stop }) {
@@ -56,21 +59,39 @@ export default function Near() {
   const [err, setErr] = useState('')
   const [selId, setSelId] = useState(null)
 
+  const [q, setQ] = useState('') // 직접 입력한 장소·주소
+
   const locate = () => {
     setErr('')
-    if (!navigator.geolocation) return setErr('이 브라우저는 위치 기능을 지원하지 않아요. 대표 위치를 골라 보세요.')
+    if (!navigator.geolocation) return setErr('이 브라우저는 위치 기능을 지원하지 않아요. 아래에 장소를 직접 입력하거나 대표 위치를 골라 보세요.')
     setBusy(true)
     navigator.geolocation.getCurrentPosition(
       (p) => {
         setBusy(false)
         const here = { lat: p.coords.latitude, lng: p.coords.longitude, name: '내 위치' }
         // 제주 밖이면(시연·해외 접속) 결과가 비므로 안내
-        if (here.lat < 33 || here.lat > 34 || here.lng < 126 || here.lng > 127.1) setErr('현재 위치가 제주 밖이에요. 대표 위치를 골라 보세요.')
+        if (!inJeju(here)) setErr('현재 위치가 제주 밖이에요. 아래에 제주 안의 장소를 직접 입력하거나 대표 위치를 골라 보세요.')
         else setPos(here)
       },
       (e) => { setBusy(false); setErr(GEO_ERR[e.code] ?? GEO_ERR[2]) },
       { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 },
     )
+  }
+
+  // 처음 들어오면 기본으로 내 위치부터 찾는다 (브라우저가 위치 허용 여부를 물어요)
+  useEffect(() => { locate() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 직접 입력: 장소 이름 → 안 되면 주소로 좌표를 찾는다 (카카오 검색)
+  const searchPlace = async (e) => {
+    e.preventDefault()
+    const v = q.trim()
+    if (!v || busy) return
+    setErr('')
+    setBusy(true)
+    const found = (await findPlace(v)) ?? (await findAddress(v).then((a) => a && { ...a, name: v }))
+    setBusy(false)
+    if (found && inJeju(found)) setPos({ lat: found.lat, lng: found.lng, name: found.name || v })
+    else setErr(`"${v}" 위치를 제주에서 찾지 못했어요. 장소 이름이나 주소를 조금 더 자세히 입력해 보세요. (예: 함덕해수욕장, 제주시 연동)`)
   }
 
   const data = useAsync(async () => {
@@ -84,6 +105,7 @@ export default function Near() {
   }, [pos?.lat, pos?.lng])
 
   const pins = [
+    ...(pos ? [{ id: 'me', title: pos.name, lat: pos.lat, lng: pos.lng, type: 'rentcar' }] : []), // 기준 위치(진한 파란 핀)
     ...(data.data?.places ?? []).map((p) => ({ id: p.id, title: p.title, lat: p.lat, lng: p.lng, type: '12' })),
   ]
   const now = data.data?.wx?.now ?? data.data?.wx?.current
@@ -94,18 +116,24 @@ export default function Near() {
         sub="지금 있는 곳 근처의 관광지, 버스 정류소와 실시간 도착 정보, 날씨를 한 번에 보여 줘요." />
       <Container className="pt-4">
         <div className="d-flex flex-wrap gap-2 align-items-center mb-2">
-          <button type="button" className="btn btn-primary" onClick={locate} disabled={busy}>
+          <button type="button" className={`btn ${pos?.name === '내 위치' ? 'btn-primary' : 'btn-outline-sea'}`} onClick={locate} disabled={busy}>
             <i className="bi bi-crosshair me-1" />{busy ? '위치 확인 중…' : '내 위치로 찾기'}
           </button>
-          <span className="small text-muted">또는 대표 위치:</span>
+          <form className="d-flex gap-2 flex-grow-1" style={{ maxWidth: 460 }} onSubmit={searchPlace}>
+            <input className="form-control" placeholder="장소·주소 직접 입력 (예: 함덕해수욕장, 제주시 연동)" value={q} onChange={(e) => setQ(e.target.value)} aria-label="찾을 위치 입력" />
+            <button className="btn btn-primary text-nowrap" type="submit" disabled={busy || !q.trim()}><i className="bi bi-search me-1" />찾기</button>
+          </form>
+        </div>
+        <div className="d-flex flex-wrap gap-2 align-items-center mb-2">
+          <span className="small text-muted">대표 위치:</span>
           {PRESETS.map((p) => (
             <button key={p.name} type="button" className={`jp-month ${pos?.name === p.name ? 'on' : ''}`} onClick={() => { setErr(''); setPos(p) }}>{p.name}</button>
           ))}
         </div>
-        <div className="small text-muted mb-3">위치 정보는 주변 검색에만 쓰이고 저장하지 않아요. 카카오톡 앱 안에서 열면 위치가 막힐 수 있어요. 그때는 크롬·사파리로 열어 주세요.</div>
+        <div className="small text-muted mb-3">들어오면 먼저 내 위치를 찾아요. 위치 정보는 주변 검색에만 쓰이고 저장하지 않아요. 카카오톡 앱 안에서 열면 위치가 막힐 수 있어요. 그때는 크롬·사파리로 열거나 직접 입력하세요.</div>
         {err && <div className="alert alert-warning py-2">{err}</div>}
 
-        {!pos && !err && <div className="text-muted py-5 text-center"><i className="bi bi-geo-alt fs-1 d-block mb-2" />위치를 선택하면 주변 정보를 보여 드려요</div>}
+        {!pos && !err && <div className="text-muted py-5 text-center"><i className="bi bi-geo-alt fs-1 d-block mb-2" />{busy ? '내 위치를 확인하고 있어요…' : '위치를 선택하면 주변 정보를 보여 드려요'}</div>}
         {pos && <Status loading={data.loading} error={data.error} />}
 
         {pos && data.data && (
@@ -131,7 +159,7 @@ export default function Near() {
                 <div className="jp-route-map rounded-3 overflow-hidden border" style={{ height: 460 }}>
                   <KakaoMap spots={pins} selectedId={selId} onSelect={(p) => setSelId(p?.id ?? null)} />
                 </div>
-                <div className="small text-muted mt-2">관광지 핀을 누르면 위치가 강조돼요</div>
+                <div className="small text-muted mt-2">진한 파란 핀이 기준 위치예요. 관광지 핀을 누르면 위치가 강조돼요</div>
               </div>
             </Col>
           </Row>

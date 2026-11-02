@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { typeMeta } from '../lib/format'
+import { roadRoute } from '../lib/routing'
 
 const KEY = import.meta.env.VITE_KAKAO_MAP_KEY
 export const hasKakaoKey = Boolean(KEY)
@@ -33,12 +34,31 @@ export function checkKakao() {
 // 두 가지 모드
 //  · spots: 핀 여러 개 (선택하면 onSelect)       — 지도 페이지·사진 상세
 //  · route: [{lat,lng,name}] 순서대로 번호 핀 + 선 — AI 가이드 코스·내 경로
-export default function KakaoMap({ spots = [], route, selectedId, onSelect = () => {}, height = '100%', level = 10 }) {
+//  · profile: 'driving' | 'foot' 를 주면 직선 대신 실제 도로·길을 따라 선을 그린다 (onRoad 로 거리·시간을 알려 준다)
+export default function KakaoMap({ spots = [], route, selectedId, onSelect = () => {}, height = '100%', level = 10, profile, onRoad }) {
   const box = useRef(null)
   const map = useRef(null)
   const drawn = useRef([])
   const [error, setError] = useState(null)
   const [ready, setReady] = useState(false)
+  const [road, setRoad] = useState(null) // { path, km, min } — 실제 경로
+  const onRoadRef = useRef(onRoad)
+  onRoadRef.current = onRoad
+
+  const routeKey = route?.length ? route.map((s) => `${s.lat},${s.lng}`).join('|') : ''
+  useEffect(() => {
+    setRoad(null)
+    onRoadRef.current?.(null)
+    if (!profile || !routeKey) return
+    let alive = true
+    roadRoute(route, profile).then((r) => {
+      if (!alive || !r) return
+      setRoad(r)
+      onRoadRef.current?.({ km: r.km, min: r.min })
+    })
+    return () => { alive = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeKey, profile])
 
   useEffect(() => {
     if (!hasKakaoKey) return
@@ -62,7 +82,10 @@ export default function KakaoMap({ spots = [], route, selectedId, onSelect = () 
     if (route?.length) {
       const path = route.map((s) => new kakao.maps.LatLng(s.lat, s.lng))
       path.forEach((p) => bounds.extend(p))
-      add(new kakao.maps.Polyline({ path, strokeWeight: 4, strokeColor: '#0e6f7a', strokeOpacity: 0.85, strokeStyle: 'solid' }))
+      // 실제 경로가 있으면 그 길을 따라 그리고, 없으면(불러오는 중·실패) 점선 직선
+      const line = road?.path?.length ? road.path.map((p) => new kakao.maps.LatLng(p.lat, p.lng)) : path
+      line.forEach((p) => bounds.extend(p))
+      add(new kakao.maps.Polyline({ path: line, strokeWeight: road ? 5 : 3, strokeColor: '#0e6f7a', strokeOpacity: road ? 0.9 : 0.7, strokeStyle: road ? 'solid' : 'shortdash' }))
       route.forEach((s, i) => {
         const el = document.createElement('div')
         el.className = 'jp-num'
@@ -93,7 +116,7 @@ export default function KakaoMap({ spots = [], route, selectedId, onSelect = () 
     else if (spots.length === 1) { map.current.setCenter(new kakao.maps.LatLng(spots[0].lat, spots[0].lng)); map.current.setLevel(4) }
     else if (spots.length > 1) map.current.setBounds(bounds)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, spots, route, selectedId])
+  }, [ready, spots, route, selectedId, road])
 
   if (!hasKakaoKey) {
     return (

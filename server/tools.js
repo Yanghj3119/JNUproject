@@ -205,7 +205,7 @@ export const runTool = {
   find_nearby: async ({ category, radius_m, ...rest }) => {
     const c = await withCoords(rest)
     return (await findNearby({ lat: c.lat, lng: c.lng, radius: radius_m, contentTypeId: CATEGORY[category] ?? '', exclude: c.id, rows: 8 }))
-      .map(({ title, addr, dist, type }) => ({ title, addr, dist_m: dist, type }))
+      .map(({ title, addr, dist, type, lat, lng }) => ({ title, addr, dist_m: dist, type, lat, lng }))
   },
 
   get_weather: async ({ place_name, lat, lng }) => {
