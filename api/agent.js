@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { tools, runTool } from '../server/tools.js'
 
-const MODEL = 'claude-sonnet-5-5'
+const MODEL = process.env.AGENT_MODEL || 'claude-opus-5-5' // 환경변수로 모델을 바꿀 수 있다 (예: claude-sonnet-5-5)
 
 const SYSTEM = `너는 제주를 처음 여행하는 관광객을 돕는 여행 가이드 에이전트 "제주픽 AI"다.
 - 사진·장소·날씨·혼잡도·접근성 정보는 반드시 도구로 확인한 뒤 답한다.
