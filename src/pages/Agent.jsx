@@ -6,6 +6,7 @@ import KakaoMap from '../components/KakaoMap'
 import PageBanner from '../components/PageBanner'
 import ShareButton from '../components/ShareButton'
 import { routeShareUrl } from '../lib/share'
+import { SPEECH_LANGS, defaultSpeechLang, useSpeech } from '../lib/useSpeech'
 
 const TOOL_LABEL = {
   search_photos: ['images', '사진 검색'],
@@ -29,6 +30,13 @@ const SUGGESTIONS = [
   '비 오는 날 서귀포에서 갈 만한 곳은?',
   '휠체어로 편하게 갈 수 있는 명소 추천해줘',
   '사람 적은 날 가기 좋은 오름 알려줘',
+]
+
+// 외국어로 물어봐도 같은 언어로 답한다 (영어·중국어·일본어)
+const MULTI = [
+  'Plan a half-day trip near Seongsan Ilchulbong and tell me how to get there by bus.',
+  '请推荐济州岛适合拍日落照片的地方，并规划一条路线。',
+  '雨の日に済州島で行ける場所を教えてください。',
 ]
 
 function RoutePanel({ route, summary }) {
@@ -115,6 +123,27 @@ export default function Agent() {
     sendMessage(v)
   }
 
+  // 음성 질문: 말이 끝나면 바로 질문으로 보낸다
+  const toast = useAppStore((s) => s.toast)
+  const [lang, setLang] = useState(defaultSpeechLang)
+  const speech = useSpeech({
+    lang,
+    onInterim: setText,
+    onFinal: (t) => { setText(''); sendMessage(t) },
+    onError: (code) => {
+      setText('')
+      if (code === 'not-allowed' || code === 'service-not-allowed') toast('마이크 사용이 막혀 있어요. 주소창 왼쪽 자물쇠 → 마이크를 허용해 주세요.', 'warning')
+      else if (code === 'no-speech') toast('말소리를 듣지 못했어요. 다시 눌러 말씀해 주세요.', 'secondary')
+      else if (code === 'network') toast('음성 인식 서버에 연결하지 못했어요.', 'warning')
+      else if (code === 'unsupported') toast('이 브라우저는 음성 입력을 지원하지 않아요. 크롬을 사용해 보세요.', 'warning')
+    },
+  })
+  const pickLang = (code) => {
+    setLang(code)
+    try { localStorage.setItem('jp-speech-lang', code) } catch { /* 저장 실패는 무시 */ }
+  }
+  const hint = SPEECH_LANGS.find((l) => l.code === lang)?.hint
+
   const lastRouteMsg = [...messages].reverse().find((m) => m.role === 'assistant' && m.route)
 
   return (
@@ -135,6 +164,10 @@ export default function Agent() {
                 <p className="mt-2 mb-3 text-muted">이런 것들을 물어볼 수 있어요</p>
                 <div className="d-grid gap-2">
                   {SUGGESTIONS.map((s) => <button key={s} className="jp-prompt" onClick={() => send(s)}>{s}</button>)}
+                </div>
+                <p className="mt-4 mb-2 small text-muted"><i className="bi bi-translate me-1" />English · 中文 · 日本語로 물어봐도 같은 언어로 답해요</p>
+                <div className="d-grid gap-2">
+                  {MULTI.map((s) => <button key={s} className="jp-prompt" lang={/[぀-ヿ]/.test(s) ? 'ja' : /[一-鿿]/.test(s) ? 'zh' : 'en'} onClick={() => send(s)}>{s}</button>)}
                 </div>
               </div>
             )}
@@ -162,8 +195,19 @@ export default function Agent() {
             <div ref={end} />
           </div>
 
-          <form className="jp-chat-form" onSubmit={(e) => { e.preventDefault(); send() }}>
-            <input className="form-control" placeholder="제주 여행에 대해 물어보세요" value={text} onChange={(e) => setText(e.target.value)} disabled={chatLoading} aria-label="질문 입력" />
+          <form className="jp-chat-form" onSubmit={(e) => { e.preventDefault(); if (speech.listening) speech.stop(); send() }}>
+            {speech.supported && (
+              <select className="form-select jp-lang" value={lang} onChange={(e) => pickLang(e.target.value)} disabled={speech.listening} aria-label="음성 인식 언어" title="음성 인식 언어">
+                {SPEECH_LANGS.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
+              </select>
+            )}
+            <input className="form-control" placeholder={speech.listening ? hint : '제주 여행에 대해 물어보세요 (English · 中文 · 日本語 OK)'} value={text} onChange={(e) => setText(e.target.value)} disabled={chatLoading} aria-label="질문 입력" />
+            {speech.supported && (
+              <button type="button" className={`btn btn-outline-sea jp-mic ${speech.listening ? 'on' : ''}`} onClick={speech.listening ? speech.stop : speech.start} disabled={chatLoading}
+                aria-label={speech.listening ? '음성 입력 멈추기' : '음성으로 질문하기'} title={speech.listening ? '멈추기' : '말로 질문하기'}>
+                <i className={`bi bi-mic${speech.listening ? '-fill' : ''}`} />
+              </button>
+            )}
             <button className="btn btn-primary px-4" disabled={chatLoading || !text.trim()} aria-label="보내기"><i className="bi bi-arrow-up" /></button>
           </form>
         </div>
