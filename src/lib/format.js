@@ -36,6 +36,7 @@ export const TYPE_META = {
   oreum: { label: '오름', color: '#1d4ed8', icon: 'triangle' },
   museum: { label: '박물관·미술관', color: '#6366f1', icon: 'bank2' },
   souvenir: { label: '기념품', color: '#38bdf8', icon: 'bag-heart' },
+  me: { label: '내 위치', color: '#f43f5e', icon: 'geo-alt-fill' },
   trail: { label: '둘레길 지점', color: '#15803d', icon: 'tree' },
   port: { label: '항구', color: '#0369a1', icon: 'water' },
   portdest: { label: '목적지 항구', color: '#38bdf8', icon: 'water' },

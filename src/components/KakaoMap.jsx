@@ -35,9 +35,9 @@ export function checkKakao() {
 //  · spots: 핀 여러 개 (선택하면 onSelect)       — 지도 페이지·사진 상세
 //  · route: [{lat,lng,name}] 순서대로 번호 핀 + 선 — AI 가이드 코스·내 경로
 //  · profile: 'driving' | 'foot' 를 주면 직선 대신 실제 도로·길을 따라 선을 그린다 (onRoad 로 거리·시간을 알려 준다)
-//  · links: 점선으로 잇는 선(항로) / labels: 모든 핀에 이름 표시
+//  · center: 이 위치로 지도 이동 / links: 점선으로 잇는 선(항로) / labels: 모든 핀에 이름 표시
 //  · numbered: false 면 정류장처럼 점이 많은 경로를 번호 대신 점으로 그린다 / waypoints: 도로 경로에 쓸 최대 경유지 수
-export default function KakaoMap({ spots = [], route, selectedId, onSelect = () => {}, height = '100%', level = 10, profile, onRoad, numbered = true, waypoints = 10, links = [], labels = false }) {
+export default function KakaoMap({ spots = [], route, selectedId, onSelect = () => {}, height = '100%', level = 10, profile, onRoad, numbered = true, waypoints = 10, links = [], labels = false, center }) {
   const box = useRef(null)
   const fitKey = useRef('')
   const map = useRef(null)
@@ -73,6 +73,16 @@ export default function KakaoMap({ spots = [], route, selectedId, onSelect = () 
     }).catch((e) => alive && setError(e.message))
     return () => { alive = false }
   }, [level])
+
+  // center: {lat,lng} 가 바뀌면 그 위치로 지도를 옮기고 가까이 보여 준다 (내 위치 찾기 등)
+  const centerKey = center ? `${center.lat},${center.lng}` : ''
+  useEffect(() => {
+    if (!ready || !centerKey) return
+    const kakao = window.kakao
+    map.current.setLevel(6)
+    map.current.panTo(new kakao.maps.LatLng(center.lat, center.lng))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, centerKey])
 
   useEffect(() => {
     if (!ready) return
@@ -122,7 +132,7 @@ export default function KakaoMap({ spots = [], route, selectedId, onSelect = () 
       el.className = `jp-kpin ${sel ? 'sel' : ''}`
       el.style.setProperty('--c', typeMeta(s.type).color)
       el.title = s.title
-      el.innerHTML = sel || labels ? `<span>${String(s.title).replace(/[<>&]/g, '')}</span>` : ''
+      el.innerHTML = sel || labels || s.label ? `<span>${String(s.title).replace(/[<>&]/g, '')}</span>` : ''
       el.onclick = () => onSelect(s)
       add(new kakao.maps.CustomOverlay({ position: pos, content: el, yAnchor: 1, zIndex: sel ? 10 : 1 }))
     })
@@ -131,6 +141,7 @@ export default function KakaoMap({ spots = [], route, selectedId, onSelect = () 
     const chosen = spots.find((s) => String(s.id) === String(selectedId))
     if (chosen) map.current.panTo(new kakao.maps.LatLng(chosen.lat, chosen.lng))
     else if (spots.length === 1) { map.current.setCenter(new kakao.maps.LatLng(spots[0].lat, spots[0].lng)); map.current.setLevel(4) }
+    else if (center) { /* 지정한 위치로 이미 옮겼으니 범위를 다시 맞추지 않는다 */ }
     else if (spots.length > 1 || links.length) map.current.setBounds(bounds, 40, 40, 40, 40)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, spots, route, selectedId, road, links, labels])

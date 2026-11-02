@@ -299,6 +299,32 @@ function Pins({ spots, terrain, exag, selectedId, onSelect }) {
   )
 }
 
+// 내 위치: 붉은 점 + 바깥으로 퍼지는 링 + 이름표
+function MeMarker({ me, terrain, exag }) {
+  const ring = useRef()
+  const [x, z] = terrain.project(me.lat, me.lng)
+  const y = (terrain.heightAt(x, z) / terrain.UNIT) * exag + 0.03
+  useFrame(({ clock }) => {
+    if (!ring.current) return
+    const p = (clock.elapsedTime * 0.8) % 1
+    ring.current.scale.setScalar(0.6 + p * 1.8)
+    ring.current.material.opacity = (1 - p) * 0.7
+  })
+  return (
+    <group position={[x, y, z]}>
+      <mesh position={[0, 0.07, 0]}>
+        <sphereGeometry args={[0.07, 20, 16]} />
+        <meshStandardMaterial color="#f43f5e" emissive="#f43f5e" emissiveIntensity={0.9} roughness={0.3} />
+      </mesh>
+      <mesh ref={ring} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
+        <ringGeometry args={[0.1, 0.13, 40]} />
+        <meshBasicMaterial color="#f43f5e" transparent depthWrite={false} side={THREE.DoubleSide} toneMapped={false} />
+      </mesh>
+      <TextSprite text="내 위치" variant="pin" position={[0, 0.34, 0]} />
+    </group>
+  )
+}
+
 // 지형 위에 얹는 경로선 (둘레길·버스 노선 등). lines: [{ id, color, active, segments: [[[lat,lng], …], …] }]
 function RouteLines({ lines, terrain, exag }) {
   const items = useMemo(() => lines.map((l) => ({
@@ -421,7 +447,7 @@ function CameraRig({ controls, target }) {
   return null
 }
 
-function Scene({ terrain, spots, selectedId, onSelect, weather, sun, override, regional, exag, lines, focus }) {
+function Scene({ terrain, spots, selectedId, onSelect, weather, sun, override, regional, exag, lines, focus, me }) {
   const atm = atmosphere(weather, sun, override)
   const controls = useRef()
   const az = THREE.MathUtils.degToRad(atm.az)
@@ -462,6 +488,7 @@ function Scene({ terrain, spots, selectedId, onSelect, weather, sun, override, r
       {regional?.length > 0 && <RegionWeather terrain={terrain} exag={exag} items={regional} />}
       {lines?.length > 0 && <RouteLines lines={lines} terrain={terrain} exag={exag} />}
       <Pins spots={spots} terrain={terrain} exag={exag} selectedId={selectedId} onSelect={onSelect} />
+      {me && <MeMarker me={me} terrain={terrain} exag={exag} />}
       <Weather atm={atm} />
 
       <OrbitControls ref={controls} makeDefault enablePan={false} minDistance={1.2} maxDistance={14} maxPolarAngle={Math.PI / 2.08} target={[0, 0, 0]} />
@@ -473,8 +500,8 @@ function Scene({ terrain, spots, selectedId, onSelect, weather, sun, override, r
 // spots: [{id,title,lat,lng,type}]
 // weather: 날씨 API 의 now 값 ({sky, rainy, rain, wind}) / sun: {sunrise, sunset} / override: 'day'|'night'|null (낮·밤 강제)
 // regional: [{place, lat, lng, temp, sky, rain, rainy, pop}] 지역별 날씨 라벨 / exaggeration: 고도 과장 배율
-// lines: 지형 위 경로선 [{id,color,active,segments}] / focus: {lat,lng} 카메라가 향할 중심
-export default function Jeju3D({ spots = [], selectedId, onSelect = () => {}, weather, sun, override = null, regional = [], exaggeration = 3, lines, focus }) {
+// lines: 지형 위 경로선 [{id,color,active,segments}] / focus: {lat,lng} 카메라가 향할 중심 / me: {lat,lng} 내 위치 표시
+export default function Jeju3D({ spots = [], selectedId, onSelect = () => {}, weather, sun, override = null, regional = [], exaggeration = 3, lines, focus, me }) {
   const [terrain, setTerrain] = useState(null)
   const [error, setError] = useState(null)
   const [pct, setPct] = useState(0)
@@ -505,7 +532,7 @@ export default function Jeju3D({ spots = [], selectedId, onSelect = () => {}, we
           dpr={[1, 2]}
           onPointerMissed={() => onSelect(null)}
         >
-          <Scene terrain={terrain} spots={spots} selectedId={selectedId} onSelect={onSelect} weather={weather} sun={sun} override={override} regional={regional} exag={exaggeration} lines={lines} focus={focus} />
+          <Scene terrain={terrain} spots={spots} selectedId={selectedId} onSelect={onSelect} weather={weather} sun={sun} override={override} regional={regional} exag={exaggeration} lines={lines} focus={focus} me={me} />
         </Canvas>
       )}
     </div>
