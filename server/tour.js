@@ -69,7 +69,7 @@ function nameCandidates(text) {
 
 // ── 장소 이름 → 좌표가 있는 장소 ─────────────────────────────
 // 이 키로 받는 관광공사 데이터에는 성산일출봉·협재·만장굴 같은 유명 장소가 빠져 있고, 키워드 검색은 비슷한 이름의 음식점을 돌려주기도 한다.
-// 그래서 정확한 곳부터 차례로 찾는다: ① 내장 대표 명소 → ② 오름 DB → ③ 관광공사(이름이 같거나 관광지) → ④ 카카오 로컬 검색(키가 있을 때)
+// 그래서 정확한 곳부터 차례로 찾는다: ① 내장 대표 명소 → ② 오름·박물관·미술관 DB → ③ 관광공사(이름이 같거나 관광지) → ④ 카카오 로컬 검색(키가 있을 때)
 const norm = (s) => String(s ?? '').replace(/[\s()[\]·\-_,]/g, '').toLowerCase()
 const GAZETTEER = Object.values(FALLBACK_SPOTS).flat()
 const ATTRACTION = new Set(['12', '14', '15', '28'])
@@ -84,12 +84,24 @@ function fromGazetteer(q) {
     .sort((a, b) => b.title.length - a.title.length)[0] ?? null
 }
 
-async function fromOreum(q) {
+// 제주데이터허브의 오름 · 박물관/미술관 · 기념품 가게 (좌표 있음)
+async function fromHub(q) {
   const n = norm(q)
   if (n.length < 2) return null
-  const list = await listHubPlaces({ kind: 'oreum' }).catch(() => [])
-  return list.find((p) => norm(p.title) === n)
-    ?? (/(오름|봉|악|굼부리)$/.test(String(q).trim()) ? list.find((p) => norm(p.title).includes(n)) : null) ?? null
+  for (const kind of ['oreum', 'museum', 'souvenir']) {
+    const list = await listHubPlaces({ kind }).catch(() => [])
+    const exact = list.find((p) => norm(p.title) === n)
+    if (exact) return exact
+  }
+  // 정확히 같은 이름이 없으면 부분 일치 (예: "이중섭미술관" ↔ "이중섭미술관 창작스튜디오"), 짧은 이름이 우선
+  if (n.length < 3) return null
+  for (const kind of ['museum', 'oreum']) {
+    const list = await listHubPlaces({ kind }).catch(() => [])
+    const hit = list.filter((p) => { const t = norm(p.title); return t.includes(n) || (t.length >= 4 && n.includes(t)) })
+      .sort((a, b) => a.title.length - b.title.length)[0]
+    if (hit) return hit
+  }
+  return null
 }
 
 async function fromTour(q) {
@@ -103,7 +115,7 @@ export async function resolvePlace(...texts) {
   for (const text of texts) {
     for (const keyword of nameCandidates(text)) {
       const hit = await cached(`resolve:${norm(keyword)}`, 60 * 60e3, async () =>
-        fromGazetteer(keyword) ?? (await fromOreum(keyword)) ?? (await fromTour(keyword)) ?? (await kakaoPlace(keyword).catch(() => null)) ?? null)
+        fromGazetteer(keyword) ?? (await fromHub(keyword)) ?? (await fromTour(keyword)) ?? (await kakaoPlace(keyword).catch(() => null)) ?? null)
       if (hit) return hit
     }
   }

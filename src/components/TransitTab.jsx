@@ -221,9 +221,7 @@ export function FerryTab() {
         ))}
       </div>
       <p className="small text-muted">
-        출발 항구를 고르면 오늘 운항 예정 시간표가 나와요{data?.note ? ` (${data.note})` : ''}. 예정 시각이라 기상에 따라 결항될 수 있어요.
-        우도·비양도 도항선은 이 공공데이터에 없어요. 성산항·종달항·한림항에서 확인하세요.
-      </p>
+        출발 항구를 고르면 오늘 운항 예정 시간표가 나와요{data?.note ? ` (${data.note})` : ''}. 예정 시각이라 기상에 따라 결항될 수 있어요.      </p>
       <Status loading={loading} error={error} empty={!loading && !error && !data?.sailings?.length} emptyText="오늘 이 항구에서 출발하는 배 정보가 없어요" />
       {data?.sailings?.length > 0 && (
         <div className="table-responsive">

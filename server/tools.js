@@ -124,7 +124,7 @@ export const tools = [
   },
   {
     name: 'get_ferry_schedule',
-    description: '제주 여객선의 오늘 운항 시간표(출발·도착 예정 시각, 선박, 요금)를 항구별로 조회한다. 제주항(추자도·완도·진도·목포행), 운진항(가파도·마라도행), 송악산(마라도행), 추자도, 가파도, 마라도, 제주국제 항을 지원한다. 우도·비양도 도항선은 데이터에 없으니 모른다고 말하고 성산항·종달항·한림항 매표소 확인을 안내한다. 기상에 따라 결항될 수 있다.',
+    description: '제주 여객선의 오늘 운항 시간표(출발·도착 예정 시각, 선박, 요금)를 항구별로 조회한다. 제주항(추자도·완도·진도·목포행), 운진항(가파도·마라도행), 송악산(마라도행), 추자도, 가파도, 마라도, 제주국제 항을 지원한다. 목록에 없는 항로는 모른다고 말한다. 기상에 따라 결항될 수 있다.',
     input_schema: {
       type: 'object',
       properties: { port: { type: 'string', enum: ['제주항', '제주국제', '운진항', '송악산', '추자도', '가파도', '마라도'], description: '출발 항구' } },
@@ -155,7 +155,7 @@ export const tools = [
   },
   {
     name: 'propose_route',
-    description: '사용자에게 보여 줄 여행 코스(경로)를 만든다. 코스·일정·동선을 추천할 때, 다른 도구로 장소를 확인한 뒤 방문 순서대로 3~6곳을 넣어 마지막에 한 번 호출한다. 각 장소는 실제 관광지 이름이어야 한다.',
+    description: '사용자에게 보여 줄 여행 코스(경로)를 만든다. 코스·일정·동선을 추천할 때, 다른 도구로 장소를 확인한 뒤 방문 순서대로 3~6곳을 넣어 마지막에 한 번 호출한다. 각 장소는 실제 관광지 이름이어야 한다. 박물관·미술관·오름·기념품 가게처럼 다른 도구 결과에 lat/lng 가 있으면 반드시 함께 넣는다.',
     input_schema: {
       type: 'object',
       properties: {
@@ -168,6 +168,8 @@ export const tools = [
             properties: {
               name: { type: 'string', description: '관광지 이름' },
               note: { type: 'string', description: '이 장소에서 할 일·팁 (한 문장)' },
+              lat: { type: 'number', description: '다른 도구 결과에 이 장소의 위도가 있으면 그대로 넣는다 (가장 정확함)' },
+              lng: { type: 'number', description: '다른 도구 결과에 이 장소의 경도가 있으면 그대로 넣는다' },
             },
             required: ['name'],
           },
@@ -248,7 +250,7 @@ export const runTool = {
     const f = await getFerries({ port })
     const now = new Date(Date.now() + 9 * 3600e3).toISOString().slice(11, 16)
     return {
-      date: f.date, port: f.port, note: '예정 시각 기준이며 기상에 따라 결항될 수 있어요. 우도·비양도 도항선은 이 데이터에 없어요', now_kst: now, total_today: f.count,
+      date: f.date, port: f.port, note: '예정 시각 기준이며 기상에 따라 결항될 수 있어요', now_kst: now, total_today: f.count,
       next: f.sailings.filter((x) => x.dep >= now).slice(0, 10).map((x) => ({ ship: x.ship, from: x.from, to: x.to, dep: x.dep, arr: x.arr, fare_won: x.fare })),
     }
   },
@@ -270,7 +272,14 @@ export const runTool = {
 
   // 장소 이름들을 실제 좌표로 확인하고, 구간 거리(km)를 계산해 코스로 묶는다
   propose_route: async ({ title = '제주 코스', stops = [] }) => {
-    const resolved = await Promise.all(stops.slice(0, 8).map(async (s) => ({ s, p: await resolvePlace(s.name).catch(() => null) })))
+    // 다른 도구에서 받은 좌표가 함께 오면(제주 안이면) 그대로 쓰고, 아니면 이름으로 찾는다
+    const known = (s) => Number(s.lat) > 33 && Number(s.lat) < 34 && Number(s.lng) > 126 && Number(s.lng) < 127.1
+    const resolved = await Promise.all(stops.slice(0, 8).map(async (s) => ({
+      s,
+      p: known(s)
+        ? { title: s.name, id: `pt-${s.name}`, addr: s.addr ?? '', lat: Number(s.lat), lng: Number(s.lng) }
+        : await resolvePlace(s.name).catch(() => null),
+    })))
     const found = resolved.filter((r) => r.p).map(({ s, p }) => ({
       name: p.title, note: s.note ?? '', id: p.id, addr: p.addr, lat: p.lat, lng: p.lng, image: p.image,
     }))

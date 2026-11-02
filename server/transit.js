@@ -99,7 +99,7 @@ async function loadFlights({ direction = 'arr', city = '', date = '' } = {}) {
 }
 
 // ── 여객선 (국토교통부 TAGO 국내선박운항정보) ─────────────────
-// 이 데이터에는 제주 본섬·추자도·가파도·마라도 항로가 있고, 우도·비양도 도항선은 들어 있지 않다.
+// 이 데이터에는 제주 본섬·추자도·가파도·마라도 항로가 들어 있다.
 const SHIP = 'https://apis.data.go.kr/1613000/DmstcShipNvgInfo'
 export const FERRY_PORTS = {
   제주항: { ids: ['SEA10090'], note: '추자도·완도·진도·녹동·목포행' },
