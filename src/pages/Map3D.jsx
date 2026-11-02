@@ -3,10 +3,10 @@ import { Link } from 'react-router-dom'
 import { Col, Container, Row } from 'react-bootstrap'
 import { fetchAccess, fetchNearby, fetchSpots, fetchWeather } from '../api/client'
 import { useAsync } from '../lib/useAsync'
-import { TYPE_META, typeMeta } from '../lib/format'
+import { TYPE_META, typeMeta, skyIcon } from '../lib/format'
 import { fallbackFor } from '../data/landmarks'
 import PageBanner from '../components/PageBanner'
-import Jeju3D from '../components/Jeju3D'
+import Jeju3D, { WEATHER_REGIONS } from '../components/Jeju3D'
 import KakaoMap from '../components/KakaoMap'
 import PlaceCard from '../components/PlaceCard'
 import Status from '../components/Status'
@@ -14,11 +14,39 @@ import WeatherBadge from '../components/WeatherBadge'
 
 const TYPES = ['12', '14', '15', '39', 'oreum', 'museum', 'souvenir'] // 숫자: 한국관광공사 / 문자: 제주데이터허브
 
+// 날씨 미리보기: 실제 날씨 대신 원하는 날씨·시간대를 3D 로 시험해 볼 수 있다 (발표·시연용)
+const WX_MODES = [
+  { id: 'live', label: '실시간', icon: 'broadcast' },
+  { id: 'clear', label: '맑음', icon: 'brightness-high' },
+  { id: 'cloud', label: '흐림', icon: 'cloud' },
+  { id: 'rain', label: '비', icon: 'cloud-rain' },
+  { id: 'snow', label: '눈', icon: 'cloud-snow' },
+  { id: 'night', label: '밤', icon: 'moon-stars' },
+]
+const SIM = {
+  clear: { sky: '맑음', rainy: false, rain: '없음', pop: 0, wind: 3 },
+  cloud: { sky: '흐림', rainy: false, rain: '없음', pop: 20, wind: 6 },
+  rain: { sky: '흐림', rainy: true, rain: '비', pop: 90, wind: 8 },
+  snow: { sky: '흐림', rainy: true, rain: '눈', pop: 80, wind: 4 },
+}
+const PHASE_LABEL = { day: '낮', golden: '황금시간', night: '밤' }
+
+// 지금 시각이 낮·황금시간·밤 중 어디인지 (HUD 표시용, 3D 와 같은 기준)
+function phaseNow(sun) {
+  const hm = (s) => { const m = String(s ?? '').match(/^(\d{1,2}):(\d{2})/); return m ? Number(m[1]) * 60 + Number(m[2]) : null }
+  const k = new Date(Date.now() + 9 * 3600e3)
+  const now = k.getUTCHours() * 60 + k.getUTCMinutes()
+  const sr = hm(sun?.sunrise) ?? 390, ss = hm(sun?.sunset) ?? 1080
+  if (now < sr - 40 || now > ss + 40) return 'night'
+  return now > ss - 60 || now < sr + 50 ? 'golden' : 'day'
+}
+
 export default function Map3D() {
   const [type, setType] = useState('12')
   const [sel, setSel] = useState(null)
   const [view, setView] = useState('3d') // '3d' | 'map'
   const [exag, setExag] = useState(3) // 3D 고도 과장 배율
+  const [wx, setWx] = useState('live') // 날씨 미리보기 모드
 
   const fetched = useAsync(() => fetchSpots(type), [type])
   // 공공데이터가 비어 있거나 실패하면 대표 명소로 대체해서 핀이 항상 보이게 한다
@@ -29,6 +57,17 @@ export default function Map3D() {
     error: usingFallback ? null : fetched.error,
   }), [fetched, usingFallback, type])
   const weather = useAsync(() => fetchWeather({ place: '제주시' }), [])
+  // 지역별 현재 날씨 (제주시·서귀포시·성산·한림) — 일부가 실패해도 나머지는 표시
+  const regions = useAsync(async () => (await Promise.all(WEATHER_REGIONS.map((r) =>
+    fetchWeather({ place: r.place }).then((w) => (w?.now ? { ...r, ...w.now } : null)).catch(() => null)))).filter(Boolean), [])
+
+  const live = weather.data?.now
+  const sun = weather.data?.sun
+  // 미리보기 모드면 실제 값 위에 선택한 날씨를 덮어쓴다 (밤은 날씨는 그대로, 시간대만 밤)
+  const effective = live && (wx === 'live' || wx === 'night' ? live : { ...live, ...SIM[wx] })
+  const override = wx === 'live' ? null : wx === 'night' ? 'night' : 'day'
+  const phase = wx === 'night' ? 'night' : wx === 'live' ? phaseNow(sun) : 'day'
+  const showRegions = wx === 'live' || wx === 'night'
   const nearby = useAsync(() => (sel ? fetchNearby({ lat: sel.lat, lng: sel.lng, radius: 2000, exclude: sel.id }) : null), [sel?.id])
   // 무장애 정보는 한국관광공사 장소(contentId)만 조회 가능 — 제주데이터허브 장소(hub)는 건너뜀
   const access = useAsync(() => (sel && !sel.hub ? fetchAccess({ contentId: sel.id }) : null), [sel?.id])
@@ -57,7 +96,7 @@ export default function Map3D() {
               ))}
             </div>
             {view === '3d'
-              ? <Jeju3D spots={spots.data ?? []} selectedId={sel?.id} onSelect={setSel} weather={weather.data?.now} exaggeration={exag} />
+              ? <Jeju3D spots={spots.data ?? []} selectedId={sel?.id} onSelect={setSel} weather={effective} sun={sun} override={override} regional={showRegions ? regions.data ?? [] : []} exaggeration={exag} />
               : <KakaoMap spots={spots.data ?? []} selectedId={sel?.id} onSelect={setSel} />}
             <div className="jp-map-hint">
               {view === '3d'
@@ -66,6 +105,26 @@ export default function Map3D() {
             </div>
             {view === '3d' && (
               <>
+                {effective && (
+                  <div className="jp-map-hud" aria-live="polite">
+                    <div className="d-flex align-items-center gap-2">
+                      <i className={`bi bi-${wx === 'night' ? 'moon-stars' : skyIcon(effective)} fs-4`} />
+                      <div>
+                        <div className="fw-bold lh-1">{wx === 'live' || wx === 'night' ? `${effective.temp}°` : '미리보기'} · {effective.rainy ? effective.rain : effective.sky}</div>
+                        <div className="small opacity-75">강수 {effective.pop}% · 바람 {effective.wind}m/s · {PHASE_LABEL[phase]}</div>
+                      </div>
+                    </div>
+                    {sun?.sunrise && <div className="small mt-1 opacity-90"><i className="bi bi-sunrise me-1" />{sun.sunrise}<i className="bi bi-sunset ms-2 me-1" />{sun.sunset}</div>}
+                  </div>
+                )}
+                <div className="jp-map-tools jp-map-wx" role="group" aria-label="날씨 미리보기">
+                  <span>날씨</span>
+                  {WX_MODES.map((m) => (
+                    <button key={m.id} type="button" className={wx === m.id ? 'on' : ''} onClick={() => setWx(m.id)} title={m.id === 'live' ? '지금 실제 날씨' : `${m.label} 날씨 미리보기`}>
+                      <i className={`bi bi-${m.icon}`} /> {m.label}
+                    </button>
+                  ))}
+                </div>
                 <div className="jp-map-tools" role="group" aria-label="고도 과장">
                   <span>고도</span>
                   {[1, 2, 3, 5].map((n) => (

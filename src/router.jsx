@@ -5,6 +5,7 @@ import Explore from './pages/Explore'
 import PhotoDetail from './pages/PhotoDetail'
 import Map3D from './pages/Map3D'
 import Info from './pages/Info'
+import PhotoSpots from './pages/PhotoSpots'
 import SharedRoute from './pages/SharedRoute'
 import Agent from './pages/Agent'
 import My from './pages/My'
@@ -17,6 +18,7 @@ import NotFound from './pages/NotFound'
 export const NAV_ITEMS = [
   { to: '/agent', label: 'AI 가이드', icon: 'stars', ai: true },
   { to: '/explore', label: '사진 탐색', icon: 'images' },
+  { to: '/spots', label: '포토 스팟', icon: 'camera' },
   { to: '/map', label: '지도', icon: 'map' },
   { to: '/info', label: '여행 정보', icon: 'info-circle' },
   { to: '/my', label: '내 보관함', icon: 'bookmark' },
@@ -34,6 +36,7 @@ export const router = createBrowserRouter([
       { path: 'photo/:id', element: <PhotoDetail /> },
       { path: 'map', element: <Map3D /> },
       { path: 'info', element: <Info /> },
+      { path: 'spots', element: <PhotoSpots /> },
       { path: 'share', element: <SharedRoute /> },
       { path: 'my', element: <My /> },
       { path: 'login', element: <Login /> },

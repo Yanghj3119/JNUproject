@@ -1,6 +1,8 @@
 // AI 에이전트 도구 모음 — 화면용 /api 와 같은 함수를 재사용
 import { searchPhotos, getPhotoInfo } from './photos.js'
-import { findNearby, resolvePlace, CATEGORY } from './tour.js'
+import { findNearby, resolvePlace, listSpots, CATEGORY } from './tour.js'
+import { PHOTO_THEMES, themesOf } from '../src/data/photoThemes.js'
+import { searchStops, getArrivals, getFlights } from './transit.js'
 import { getWeather } from './weather.js'
 import { checkAccessibility } from './access.js'
 import { getRelated } from './related.js'
@@ -122,6 +124,37 @@ export const tools = [
     input_schema: { type: 'object', properties: { name: { type: 'string', description: '정류소 이름 일부' } }, required: ['name'] },
   },
   {
+    name: 'get_bus_arrivals',
+    description: '제주 버스 정류소의 실시간 도착 정보를 조회한다 (노선 번호, 몇 분 뒤 도착, 몇 정거장 전, 저상버스 여부). 정류소 이름 일부로 찾는다. 대중교통으로 이동하는 방법을 물을 때 쓴다.',
+    input_schema: {
+      type: 'object',
+      properties: { stop_name: { type: 'string', description: '정류소 이름 일부 (예: 제주국제공항, 성산, 동문시장)' } },
+      required: ['stop_name'],
+    },
+  },
+  {
+    name: 'get_flight_schedule',
+    description: '제주공항의 오늘 국내선 운항 스케줄(예정 시각)을 조회한다. 도착(arr) 또는 출발(dep)과 상대 공항 코드(GMP 김포, PUS 김해, ICN 인천 등)를 줄 수 있다. 지연·결항은 반영되지 않는다.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        direction: { type: 'string', enum: ['arr', 'dep'], description: 'arr=제주 도착, dep=제주 출발' },
+        city_code: { type: 'string', description: '상대 공항 코드 (선택)' },
+      },
+    },
+  },
+  {
+    name: 'find_photo_spots',
+    description: `사진이 잘 나오는 제주 포토 스팟(사진이 등록된 관광지)을 테마별로 찾는다. 테마: ${PHOTO_THEMES.map((t) => `${t.id}=${t.label}`).join(', ')}. near 에 기준 장소를 주면 가까운 순으로 돌려준다. 일출·일몰·꽃·바다 사진 명소를 물을 때 쓴다.`,
+    input_schema: {
+      type: 'object',
+      properties: {
+        theme: { type: 'string', enum: PHOTO_THEMES.map((t) => t.id), description: '테마 (생략하면 전체)' },
+        near: { type: 'string', description: '기준 장소 이름 (예: 성산일출봉). 주면 가까운 순' },
+      },
+    },
+  },
+  {
     name: 'propose_route',
     description: '사용자에게 보여 줄 여행 코스(경로)를 만든다. 코스·일정·동선을 추천할 때, 다른 도구로 장소를 확인한 뒤 방문 순서대로 3~6곳을 넣어 마지막에 한 번 호출한다. 각 장소는 실제 관광지 이름이어야 한다.',
     input_schema: {
@@ -196,6 +229,40 @@ export const runTool = {
   get_traffic_accident_spots: async ({ sigungu }) =>
     (await getAccidentSpots({ sigungu, limit: 8 })).map(({ lat: _la, lng: _ln, ...a }) => a),
   search_bus_stops: async ({ name }) => (await searchBusStops({ name, limit: 8 })).map(({ lat: _la, lng: _ln, ...s }) => s),
+
+  get_bus_arrivals: async ({ stop_name }) => {
+    const stops = (await searchStops({ name: stop_name, limit: 6 })).slice(0, 4)
+    if (!stops.length) return { note: `"${stop_name}" 정류소를 찾지 못했어요` }
+    return Promise.all(stops.map(async (s) => ({
+      stop: s.name,
+      arrivals: (await getArrivals({ nodeId: s.id }).catch(() => [])).slice(0, 5)
+        .map((a) => ({ route: a.route, minutes: a.minutes, stops_away: a.stopsAway, low_floor: a.lowFloor })),
+    })))
+  },
+
+  get_flight_schedule: async ({ direction = 'arr', city_code = '' }) => {
+    const f = await getFlights({ direction, city: city_code })
+    const now = new Date(Date.now() + 9 * 3600e3).toISOString().slice(11, 16) // 한국시간 HH:MM
+    return {
+      date: f.date, note: '예정 시각 기준이며 지연·결항은 반영되지 않아요', now_kst: now, total_today: f.count,
+      next: f.flights.filter((x) => x.time >= now).slice(0, 8).map((x) => ({ flight: x.flight, airline: x.airline, from: x.from, to: x.to, dep: x.dep, arr: x.arr })),
+    }
+  },
+
+  find_photo_spots: async ({ theme = '', near = '' }) => {
+    // 관광지 최대 300곳 중 사진이 있는 곳을 테마(이름 키워드)로 거른다
+    const pages = await Promise.all([1, 2, 3].map((page) => listSpots({ type: '12', rows: 100, page }).catch(() => [])))
+    const seen = new Set()
+    let list = pages.flat().filter((s) => s.image && !seen.has(s.id) && seen.add(s.id))
+    if (theme) list = list.filter((s) => themesOf(s).includes(theme))
+    if (near) {
+      const c = await withCoords({ place_name: near })
+      const d = Math.PI / 180
+      const km = (p) => Math.hypot((p.lng - c.lng) * d * Math.cos(c.lat * d), (p.lat - c.lat) * d) * 6371
+      list = list.map((p) => ({ ...p, km: Math.round(km(p) * 10) / 10 })).sort((a, b) => a.km - b.km)
+    }
+    return list.slice(0, 8).map(({ title, addr, lat, lng, km }) => ({ title, addr, lat, lng, km_from_base: km, themes: themesOf({ title }) }))
+  },
 
   // 장소 이름들을 실제 좌표로 확인하고, 구간 거리(km)를 계산해 코스로 묶는다
   propose_route: async ({ title = '제주 코스', stops = [] }) => {

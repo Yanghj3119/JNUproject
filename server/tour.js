@@ -18,9 +18,9 @@ const place = (p) => ({
 })
 
 // 3D 지도용 — 제주 전체에서 이미지가 있는 대표 장소들
-export async function listSpots({ type = '12', rows = 40 } = {}) {
+export async function listSpots({ type = '12', rows = 40, page = 1 } = {}) {
   const body = await callApi(`${BASE}/areaBasedList2`, tourParams({
-    areaCode: 39, contentTypeId: type, numOfRows: Math.min(Number(rows) || 40, 100), pageNo: 1, arrange: 'Q',
+    areaCode: 39, contentTypeId: type, numOfRows: Math.min(Number(rows) || 40, 100), pageNo: Math.max(Number(page) || 1, 1), arrange: 'Q',
   }))
   return toList(body).map(place).filter((p) => inJeju(p.lat, p.lng))
 }

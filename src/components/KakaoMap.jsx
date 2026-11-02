@@ -17,7 +17,7 @@ export function loadKakao() {
     s.onload = () => window.kakao.maps.load(() => resolve(window.kakao))
     s.onerror = () => {
       sdk = null
-      reject(new Error(`카카오맵을 불러오지 못했어요. 사용 중인 키 ${kakaoKeyHint} — ① 카카오 콘솔의 "JavaScript 키" 끝자리와 같은지(REST API 키·어드민 키는 안 됨) ② 그 키의 "JavaScript SDK 도메인"에 ${window.location.origin} 이 등록됐는지 ③ 제품 설정에서 '카카오맵' 사용이 ON 인지 확인하세요.`))
+      reject(new Error(`카카오맵을 불러오지 못했어요. 사용 중인 키 ${kakaoKeyHint} — ① 카카오 콘솔의 "JavaScript 키" 끝자리와 같은지(REST API 키·어드민 키는 안 됨) ② 그 키의 "JavaScript SDK 도메인"에 ${window.location.origin} 이 등록됐는지 ③ 제품 설정에서 '카카오맵' 사용이 ON 인지 확인하세요. (Vercel 미리보기·브랜치 주소는 정식 주소와 달라서 따로 등록해야 해요. 정식 도메인으로 접속하면 한 번만 등록하면 됩니다)`))
     }
     document.head.appendChild(s)
   })

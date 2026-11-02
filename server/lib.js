@@ -23,6 +23,12 @@ export async function callApi(url, params = {}) {
     if (/LIMITED_NUMBER/i.test(text)) throw new Error('일일 호출 한도를 초과했어요')
     throw new Error(`응답이 JSON이 아님 (${r.status}): ${text.slice(0, 140)}`)
   }
+  // 인증 오류는 HTTP 403 + 다른 모양의 JSON 으로 온다 (response 가 없어서 지금까지 "빈 결과"로 오인됐음)
+  const authErr = data?.OpenAPI_ServiceResponse?.cmmMsgHeader
+  if (authErr) {
+    const reason = authErr.returnAuthMsg || authErr.errMsg || '인증 오류'
+    throw new Error(`공공데이터 인증 오류: ${reason} (${authErr.returnReasonCode ?? r.status}) — 인증키(Decoding)와 해당 API 활용신청 승인 여부를 확인하세요`)
+  }
   const head = data?.response?.header
   if (head && !['0000', '00'].includes(String(head.resultCode))) {
     throw new Error(`${head.resultMsg} (${head.resultCode})`)

@@ -6,13 +6,15 @@ import { useAsync } from '../lib/useAsync'
 import { findAddress, findPlace, mapSearchLink, mapToLink, mapWalkLink } from '../lib/kakaoGeo'
 import KakaoMap from '../components/KakaoMap'
 import PageBanner from '../components/PageBanner'
+import TransitTab from '../components/TransitTab'
 import Status from '../components/Status'
 
 // 제주데이터허브 데이터: 한라산 둘레길 · 교통(사고 다발지역·버스 정류소) · 숙박
 // 좌표가 없는 데이터(둘레길·숙박)는 카카오 장소·주소 검색으로 위치를 찾아 지도에 표시한다.
 const TABS = [
   { id: 'trail', label: '한라산 둘레길', icon: 'tree' },
-  { id: 'traffic', label: '교통·안전', icon: 'bus-front' },
+  { id: 'transit', label: '대중교통·공항', icon: 'bus-front' },
+  { id: 'traffic', label: '교통사고·정류소', icon: 'exclamation-triangle' },
   { id: 'lodging', label: '숙박', icon: 'building' },
 ]
 
@@ -246,7 +248,7 @@ function LodgingTab() {
 }
 
 export default function Info() {
-  const [tab, setTab] = useState('trail')
+  const [tab, setTab] = useState('transit')
   return (
     <>
       <PageBanner
@@ -263,6 +265,7 @@ export default function Info() {
         </div>
 
         {tab === 'trail' && <TrailTab />}
+        {tab === 'transit' && <TransitTab />}
         {tab === 'traffic' && <TrafficTab />}
         {tab === 'lodging' && <LodgingTab />}
       </Container>

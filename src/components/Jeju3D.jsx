@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { OrbitControls, Sky } from '@react-three/drei'
+import { OrbitControls, Sky, Stars } from '@react-three/drei'
 import { typeMeta } from '../lib/format'
 import { loadTerrain } from '../lib/terrain'
 import JejuStylized from './JejuStylized'
@@ -16,12 +16,45 @@ const LANDMARKS = [
   { name: '마라도', lat: 33.1139, lng: 126.2697 },
 ]
 
-// 날씨별 하늘·빛 설정
-function atmosphere(weather) {
-  if (weather?.rainy) return { fog: '#8a97a4', turbidity: 12, rayleigh: 0.4, sun: 0.9, elev: 18, clouds: 0.85, dark: true }
-  if (weather?.sky === '흐림') return { fog: '#a9b7c4', turbidity: 9, rayleigh: 0.7, sun: 1.2, elev: 24, clouds: 0.7, dark: true }
-  if (weather?.sky === '구름많음') return { fog: '#b4cadc', turbidity: 5, rayleigh: 1, sun: 2.0, elev: 32, clouds: 0.4, dark: false }
-  return { fog: '#bcd6ea', turbidity: 2.5, rayleigh: 1.3, sun: 2.6, elev: 38, clouds: 0.12, dark: false }
+// ── 날씨·시간대 ────────────────────────────────────────────
+const hm = (s) => { const m = String(s ?? '').match(/^(\d{1,2}):(\d{2})/); return m ? Number(m[1]) * 60 + Number(m[2]) : null }
+
+// 지금이 낮·황금시간·밤 중 어디인지 (한국시간 + 일출·일몰 시각). override 로 낮/밤을 강제할 수 있다 (날씨 미리보기용)
+function dayPhase(sun, override) {
+  if (override === 'night') return { phase: 'night', elev: -12, az: 30 }
+  if (override === 'day') return { phase: 'day', elev: 42, az: 170 }
+  const kst = new Date(Date.now() + 9 * 3600e3)
+  const now = kst.getUTCHours() * 60 + kst.getUTCMinutes()
+  const sr = hm(sun?.sunrise) ?? 390, ss = hm(sun?.sunset) ?? 1080
+  const frac = (now - sr) / (ss - sr)
+  const az = 90 + 180 * Math.min(Math.max(frac, 0), 1) // 동쪽에서 떠서 남쪽을 지나 서쪽으로
+  if (now < sr - 40 || now > ss + 40) return { phase: 'night', elev: -12, az }
+  const elev = frac < 0 || frac > 1 ? 2 : Math.max(3, Math.sin(Math.PI * frac) * 48)
+  const golden = now > ss - 60 || now < sr + 50
+  return { phase: golden ? 'golden' : 'day', elev, az }
+}
+
+// 날씨 + 시간대 → 하늘·빛·안개·구름·강수·바람 설정
+function atmosphere(weather, sun, override) {
+  const t = dayPhase(sun, override)
+  const snow = Boolean(weather?.rainy) && /눈/.test(weather?.rain ?? '')
+  const rainy = Boolean(weather?.rainy) && !snow
+  const overcast = rainy || snow || weather?.sky === '흐림'
+  let a
+  if (rainy || snow) a = { fog: '#8a97a4', turbidity: 12, rayleigh: 0.4, sun: 0.9, clouds: 0.85, dark: true }
+  else if (weather?.sky === '흐림') a = { fog: '#a9b7c4', turbidity: 9, rayleigh: 0.7, sun: 1.2, clouds: 0.7, dark: true }
+  else if (weather?.sky === '구름많음') a = { fog: '#b4cadc', turbidity: 5, rayleigh: 1, sun: 2.0, clouds: 0.4, dark: false }
+  else a = { fog: '#bcd6ea', turbidity: 2.5, rayleigh: 1.3, sun: 2.6, clouds: 0.12, dark: false }
+
+  const out = { ...a, ...t, rainy, snow, overcast, wind: Number(weather?.wind) || 3, sunColor: a.dark ? '#f4f6f8' : '#fff4e0', hemi: a.dark ? 0.9 : 0.6, hemiSky: '#cfe2ff', hemiGround: '#5b6150', moon: 0 }
+  // 화면 밝기(노출): 위성사진의 숲이 어두워서 낮에는 올리고, 밤에는 낮춘다
+  out.exposure = t.phase === 'night' ? 1.1 : t.phase === 'golden' ? 1.5 : overcast ? 1.5 : weather?.sky === '구름많음' ? 1.6 : 1.75
+  if (t.phase === 'night') {
+    Object.assign(out, { fog: overcast ? '#1a2533' : '#0b1626', sun: 0, sunColor: '#9db7ff', hemi: 0.42, hemiSky: '#5a73b8', hemiGround: '#141a28', moon: overcast ? 0.35 : 0.6, dark: true })
+  } else if (t.phase === 'golden') {
+    Object.assign(out, { fog: overcast ? '#b59a86' : '#e9b48a', turbidity: Math.max(a.turbidity, 6), sun: a.sun * 0.9, sunColor: '#ffb066', hemiSky: '#ffd9b0', hemiGround: '#6b5a48' })
+  }
+  return out
 }
 
 // 가장자리를 서서히 투명하게 → 바깥 바다 평면과 자연스럽게 이어지도록
@@ -67,14 +100,15 @@ function TextSprite({ text, sub, position, variant = 'geo', px = 13 }) {
     const font = `600 ${px * dpr}px "Pretendard Variable", Pretendard, "Noto Sans KR", sans-serif`
     g0.font = font
     const tw = Math.ceil(g0.measureText(text).width)
-    const padX = (variant === 'pin' ? 14 : 8) * dpr, padY = (variant === 'pin' ? 8 : 6) * dpr
+    const pill = variant === 'pin' || variant === 'wx'
+    const padX = (pill ? 14 : 8) * dpr, padY = (pill ? 8 : 6) * dpr
     const subH = sub ? px * dpr * 0.9 : 0
     const cw = tw + padX * 2, ch = px * dpr * 1.25 + subH + padY * 2
     const c = document.createElement('canvas')
     c.width = cw; c.height = ch
     const g = c.getContext('2d')
-    if (variant === 'pin') {
-      g.fillStyle = 'rgba(15,26,32,0.92)'
+    if (pill) {
+      g.fillStyle = variant === 'wx' ? 'rgba(14,111,122,0.94)' : 'rgba(15,26,32,0.92)'
       g.beginPath(); g.roundRect(0, 0, cw, ch, 10 * dpr); g.fill()
     } else {
       g.shadowColor = 'rgba(0,0,0,0.85)'; g.shadowBlur = 6 * dpr
@@ -273,46 +307,87 @@ function GeoLabels({ terrain, exag }) {
   })
 }
 
-// 날씨에 맞춘 구름 · 비
-function Weather({ atm, rainy }) {
+// 날씨에 맞춘 구름 · 비 · 눈 (바람이 셀수록 구름이 빨리 흐르고 비가 비스듬히 내린다)
+function Weather({ atm }) {
   const tex = useMemo(puffTexture, [])
   const group = useRef()
   const rain = useRef()
+  const snow = useRef()
   const puffs = useMemo(() => Array.from({ length: 14 }, (_, i) => ({
     x: ((i * 53) % 100) / 100 * 12 - 6, y: 1.9 + ((i * 29) % 7) * 0.16, z: ((i * 71) % 100) / 100 * 7 - 3.5, s: 2 + ((i * 17) % 5) * 0.7,
   })), [])
-  const drops = useMemo(() => {
-    const a = new Float32Array(1100 * 3)
-    for (let i = 0; i < 1100; i++) { a[i * 3] = (Math.random() - 0.5) * 11; a[i * 3 + 1] = Math.random() * 4; a[i * 3 + 2] = (Math.random() - 0.5) * 7 }
+  const scatter = (n) => {
+    const a = new Float32Array(n * 3)
+    for (let i = 0; i < n; i++) { a[i * 3] = (Math.random() - 0.5) * 11; a[i * 3 + 1] = Math.random() * 4; a[i * 3 + 2] = (Math.random() - 0.5) * 7 }
     return a
-  }, [])
+  }
+  const drops = useMemo(() => scatter(1100), [])
+  const flakes = useMemo(() => scatter(900), [])
 
-  useFrame((_, dt) => {
-    if (group.current) group.current.position.x = ((group.current.position.x + dt * 0.12 + 3) % 6) - 3
+  useFrame(({ clock }, dt) => {
+    if (group.current) group.current.position.x = ((group.current.position.x + dt * (0.08 + atm.wind * 0.035) + 3) % 6) - 3
     if (rain.current) {
       const arr = rain.current.geometry.attributes.position.array
-      for (let i = 0; i < 1100; i++) { arr[i * 3 + 1] -= dt * 6; if (arr[i * 3 + 1] < 0) arr[i * 3 + 1] = 4 }
+      for (let i = 0; i < 1100; i++) {
+        arr[i * 3 + 1] -= dt * 6
+        arr[i * 3] += dt * atm.wind * 0.25
+        if (arr[i * 3] > 5.5) arr[i * 3] -= 11
+        if (arr[i * 3 + 1] < 0) arr[i * 3 + 1] = 4
+      }
       rain.current.geometry.attributes.position.needsUpdate = true
+    }
+    if (snow.current) {
+      const arr = snow.current.geometry.attributes.position.array
+      const t = clock.elapsedTime
+      for (let i = 0; i < 900; i++) {
+        arr[i * 3 + 1] -= dt * 0.7
+        arr[i * 3] += Math.sin(t * 0.8 + i) * dt * 0.25 + dt * atm.wind * 0.06
+        if (arr[i * 3] > 5.5) arr[i * 3] -= 11
+        if (arr[i * 3 + 1] < 0) arr[i * 3 + 1] = 4
+      }
+      snow.current.geometry.attributes.position.needsUpdate = true
     }
   })
 
+  const cloudColor = atm.phase === 'night' ? '#4a5568' : atm.dark ? '#9aa4ae' : atm.phase === 'golden' ? '#ffd2b0' : '#ffffff'
   return (
     <>
       <group ref={group}>
         {puffs.map((p, i) => (
           <sprite key={i} position={[p.x, p.y, p.z]} scale={[p.s, p.s * 0.55, 1]}>
-            <spriteMaterial map={tex} transparent depthWrite={false} opacity={atm.clouds * 0.75} color={atm.dark ? '#9aa4ae' : '#ffffff'} fog={false} />
+            <spriteMaterial map={tex} transparent depthWrite={false} opacity={atm.clouds * 0.75} color={cloudColor} fog={false} />
           </sprite>
         ))}
       </group>
-      {rainy && (
+      {atm.rainy && (
         <points ref={rain}>
           <bufferGeometry><bufferAttribute attach="attributes-position" args={[drops, 3]} /></bufferGeometry>
-          <pointsMaterial color="#dbeaff" size={0.03} transparent opacity={0.75} depthWrite={false} />
+          <pointsMaterial color="#e6f1ff" size={0.05} transparent opacity={0.9} depthWrite={false} />
+        </points>
+      )}
+      {atm.snow && (
+        <points ref={snow}>
+          <bufferGeometry><bufferAttribute attach="attributes-position" args={[flakes, 3]} /></bufferGeometry>
+          <pointsMaterial color="#ffffff" size={0.065} transparent opacity={0.92} depthWrite={false} />
         </points>
       )}
     </>
   )
+}
+
+// 지역별 현재 날씨를 지도 위에 띄우는 라벨 (제주시·서귀포시·성산·한림)
+export const WEATHER_REGIONS = [
+  { place: '제주시', lat: 33.4996, lng: 126.5312 },
+  { place: '서귀포시', lat: 33.2541, lng: 126.5601 },
+  { place: '성산', lat: 33.4585, lng: 126.9425 },
+  { place: '한림', lat: 33.414, lng: 126.265 },
+]
+function RegionWeather({ terrain, exag, items }) {
+  return items.map((r) => {
+    const [x, z] = terrain.project(r.lat, r.lng)
+    const y = (terrain.heightAt(x, z) / terrain.UNIT) * exag
+    return <TextSprite key={r.place} variant="wx" px={12} text={`${r.place} ${r.temp}°`} sub={`${r.rainy ? r.rain : r.sky} · 강수 ${r.pop}%`} position={[x, y + 0.75, z]} />
+  })
 }
 
 // 선택한 핀으로 카메라가 부드럽게 이동
@@ -332,12 +407,13 @@ function CameraRig({ controls, target }) {
   return null
 }
 
-function Scene({ terrain, spots, selectedId, onSelect, weather, exag }) {
-  const atm = atmosphere(weather)
+function Scene({ terrain, spots, selectedId, onSelect, weather, sun, override, regional, exag }) {
+  const atm = atmosphere(weather, sun, override)
   const controls = useRef()
-  const az = THREE.MathUtils.degToRad(125)
+  const az = THREE.MathUtils.degToRad(atm.az)
   const el = THREE.MathUtils.degToRad(atm.elev)
-  const sunDir = [Math.cos(el) * Math.sin(az), Math.sin(el), Math.cos(el) * Math.cos(az)]
+  // 방위각은 북쪽 기준 시계 방향 (북쪽 = −z, 동쪽 = +x)
+  const sunDir = [Math.sin(az) * Math.cos(el), Math.sin(el), -Math.cos(az) * Math.cos(el)]
   const sel = spots.find((s) => String(s.id) === String(selectedId))
   const target = useMemo(() => {
     if (!sel) return null
@@ -345,19 +421,30 @@ function Scene({ terrain, spots, selectedId, onSelect, weather, exag }) {
     return [x, (terrain.heightAt(x, z) / terrain.UNIT) * exag, z]
   }, [sel, terrain, exag])
 
+  // 시간대·날씨에 맞춘 화면 밝기, 그리고 낮에는 바다색을 하늘색 쪽으로 밝게
+  const { gl } = useThree()
+  useEffect(() => { gl.toneMappingExposure = atm.exposure }, [gl, atm.exposure])
+  const seaColor = useMemo(
+    () => new THREE.Color(terrain.seaColor).lerp(new THREE.Color(atm.fog), atm.phase === 'night' ? 0.06 : 0.35).getStyle(),
+    [terrain.seaColor, atm.fog, atm.phase],
+  )
+
   return (
     <>
       <color attach="background" args={[atm.fog]} />
       <fog attach="fog" args={[atm.fog, 9, 40]} />
       <Sky distance={1500} sunPosition={sunDir.map((v) => v * 100)} turbidity={atm.turbidity} rayleigh={atm.rayleigh} mieCoefficient={0.005} mieDirectionalG={0.8} />
-      <hemisphereLight args={['#cfe2ff', '#5b6150', atm.dark ? 0.9 : 0.6]} />
-      <directionalLight position={sunDir.map((v) => v * 20)} intensity={atm.sun} color={atm.dark ? '#f4f6f8' : '#fff4e0'} />
+      {atm.phase === 'night' && atm.clouds < 0.6 && <Stars radius={400} depth={60} count={3000} factor={7} saturation={0} fade speed={0.4} />}
+      <hemisphereLight args={[atm.hemiSky, atm.hemiGround, atm.hemi]} />
+      {atm.sun > 0 && <directionalLight position={sunDir.map((v) => v * 20)} intensity={atm.sun} color={atm.sunColor} />}
+      {atm.moon > 0 && <directionalLight position={[-6, 10, 4]} intensity={atm.moon} color="#9db7ff" />}
 
-      <Sea color={terrain.seaColor} fogColor={atm.fog} />
+      <Sea color={seaColor} fogColor={atm.fog} />
       <Terrain terrain={terrain} exag={exag} />
       <GeoLabels terrain={terrain} exag={exag} />
+      {regional?.length > 0 && <RegionWeather terrain={terrain} exag={exag} items={regional} />}
       <Pins spots={spots} terrain={terrain} exag={exag} selectedId={selectedId} onSelect={onSelect} />
-      <Weather atm={atm} rainy={Boolean(weather?.rainy)} />
+      <Weather atm={atm} />
 
       <OrbitControls ref={controls} makeDefault enablePan={false} minDistance={1.2} maxDistance={14} maxPolarAngle={Math.PI / 2.08} target={[0, 0, 0]} />
       <CameraRig controls={controls} target={target} />
@@ -365,8 +452,10 @@ function Scene({ terrain, spots, selectedId, onSelect, weather, exag }) {
   )
 }
 
-// spots: [{id,title,lat,lng,type}] / weather: 날씨 API 의 now 값 ({sky, rainy}) / exaggeration: 고도 과장 배율
-export default function Jeju3D({ spots = [], selectedId, onSelect = () => {}, weather, exaggeration = 3 }) {
+// spots: [{id,title,lat,lng,type}]
+// weather: 날씨 API 의 now 값 ({sky, rainy, rain, wind}) / sun: {sunrise, sunset} / override: 'day'|'night'|null (낮·밤 강제)
+// regional: [{place, lat, lng, temp, sky, rain, rainy, pop}] 지역별 날씨 라벨 / exaggeration: 고도 과장 배율
+export default function Jeju3D({ spots = [], selectedId, onSelect = () => {}, weather, sun, override = null, regional = [], exaggeration = 3 }) {
   const [terrain, setTerrain] = useState(null)
   const [error, setError] = useState(null)
   const [pct, setPct] = useState(0)
@@ -397,7 +486,7 @@ export default function Jeju3D({ spots = [], selectedId, onSelect = () => {}, we
           dpr={[1, 2]}
           onPointerMissed={() => onSelect(null)}
         >
-          <Scene terrain={terrain} spots={spots} selectedId={selectedId} onSelect={onSelect} weather={weather} exag={exaggeration} />
+          <Scene terrain={terrain} spots={spots} selectedId={selectedId} onSelect={onSelect} weather={weather} sun={sun} override={override} regional={regional} exag={exaggeration} />
         </Canvas>
       )}
     </div>
