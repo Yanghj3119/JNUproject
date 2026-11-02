@@ -24,6 +24,7 @@ export const fetchWeather = ({ place, lat, lng } = {}) => get('/api/weather', { 
 export const fetchSpots = (type = '12') => get('/api/spots', { type })
 export const fetchAccess = ({ contentId, name }) => get('/api/access', { contentId, name })
 export const fetchRelated = ({ name, addr }) => get('/api/related', { name, addr })
+export const fetchCrowd = ({ name, addr }) => get('/api/crowd', { name, addr })
 
 // 연결 점검 · 에이전트
 export const fetchHealth = () => get('/api/health')

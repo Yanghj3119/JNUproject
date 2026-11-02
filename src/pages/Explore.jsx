@@ -16,8 +16,12 @@ export default function Explore() {
   const [input, setInput] = useState(q)
   const [month, setMonth] = useState(0) // 0 = 전체
 
-  const { data, loading, error } = useAsync(() => fetchPhotos(q, 24), [q])
+  const { data, loading, error } = useAsync(() => fetchPhotos(q, 60), [q])
   const list = (data ?? []).filter((p) => !month || monthOf(p.month) === month)
+  // 월별 사진 수 — 사진이 없는 달은 비활성화
+  const counts = {}
+  for (const p of data ?? []) { const m = monthOf(p.month); if (m) counts[m] = (counts[m] ?? 0) + 1 }
+  const unknown = (data ?? []).filter((p) => !monthOf(p.month)).length
 
   const submit = (e) => { e.preventDefault(); setParams(input.trim() ? { q: input.trim() } : {}) }
 
@@ -41,9 +45,14 @@ export default function Explore() {
       <div className="jp-months mb-4">
         <button type="button" className={`jp-month ${month === 0 ? 'on' : ''}`} onClick={() => setMonth(0)}>촬영월 전체</button>
         {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-          <button key={m} type="button" className={`jp-month ${month === m ? 'on' : ''}`} onClick={() => setMonth(m)}>{m}월</button>
+          <button key={m} type="button" className={`jp-month ${month === m ? 'on' : ''}`} disabled={!counts[m]} onClick={() => setMonth(m)}>
+            {m}월{counts[m] ? ` ${counts[m]}` : ''}
+          </button>
         ))}
       </div>
+      {!loading && data?.length > 0 && unknown > 0 && (
+        <div className="small text-muted mb-3">촬영월 정보가 없는 사진 {unknown}장은 ‘촬영월 전체’에서만 보여요.</div>
+      )}
 
       <Status loading={loading} error={error} empty={!loading && !error && !list.length}
         emptyText={month ? `${month}월에 찍은 사진이 없어요. 다른 달을 눌러 보세요.` : '검색 결과가 없어요'} />

@@ -1,7 +1,9 @@
-// 사진 API 의 촬영월 값("202005", "5", "05월" 등)에서 월(1~12)만 뽑기
+// 사진 API 의 촬영월 값에서 월(1~12)만 뽑기
+// 지원 형식: 202005 · 20200512 · 2020-05(-12) · 2020.05 · 5월 · 05 · 5
 export function monthOf(v) {
-  const m = String(v ?? '').match(/(\d{1,2})\s*월?$/)
-  const n = m ? Number(m[1]) : 0
+  const s = String(v ?? '').trim()
+  const ym = s.match(/^(?:19|20)\d{2}\D?(\d{2})/)           // 연도로 시작하면 바로 뒤 두 자리가 월
+  const n = ym ? Number(ym[1]) : Number((s.match(/^(\d{1,2})\s*월?$/) ?? [])[1] ?? 0)
   return n >= 1 && n <= 12 ? n : 0
 }
 
@@ -12,7 +14,7 @@ export const distLabel = (m) => (m == null ? '' : m < 1000 ? `${m}m` : `${(m / 1
 
 // 사진 상세 페이지 주소 — 새로고침해도 다시 조회할 수 있게 제목·촬영지를 쿼리로 담는다
 export function photoLink(p) {
-  const q = new URLSearchParams({ title: p.title ?? '', loc: p.location ?? '' })
+  const q = new URLSearchParams({ title: p.title ?? '', loc: p.location ?? '', img: p.image ?? '', m: p.month ?? '' })
   return `/photo/${encodeURIComponent(p.id || 'x')}?${q}`
 }
 

@@ -4,6 +4,9 @@ import { listSpots, findNearby } from '../server/tour.js'
 import { getWeather } from '../server/weather.js'
 import { checkAccessibility } from '../server/access.js'
 import { getRelated } from '../server/related.js'
+import { searchAwardPhotos } from '../server/photos.js'
+import { getCrowd } from '../server/crowd.js'
+import { getSunTimes } from '../server/sun.js'
 
 // 각 공공데이터 API 를 1건씩 불러 보고 성공/실패를 알려 준다 (활용신청 승인 여부 확인용)
 const time = async (name, fn) => {
@@ -20,6 +23,9 @@ export default route(async () => {
     time('기상청 단기예보', () => getWeather({ place: '제주시' })),
     time('무장애 여행 정보', () => checkAccessibility({ place_name: '성산일출봉' })),
     time('연관 관광지 정보', () => getRelated({ place_name: '성산일출봉' })),
+    time('관광공모전(사진) 수상작', () => searchAwardPhotos({ rows: 1 })),
+    time('관광지 집중률 예측', () => getCrowd({ place_name: '성산일출봉', addr: '제주특별자치도 서귀포시' })),
+    time('출몰시각 정보', () => getSunTimes({ lat: 33.4584, lng: 126.9425 })),
   ])
   return { checks, keys: { dataGoKr: Boolean(process.env.DATA_GO_KR_KEY), anthropic: Boolean(process.env.ANTHROPIC_API_KEY) } }
 })

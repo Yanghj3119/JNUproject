@@ -43,6 +43,12 @@ export default function WeatherBadge({ place, lat, lng, variant = 'badge' }) {
           </div>
         ))}
       </div>
+      {data.sun?.sunrise && (
+        <div className="small mt-2 opacity-90">
+          <i className="bi bi-sunrise me-1" />일출 {data.sun.sunrise}
+          <i className="bi bi-sunset ms-3 me-1" />일몰 {data.sun.sunset}
+        </div>
+      )}
       <div className={`small mt-2 ${data.wet ? 'fw-semibold' : 'opacity-75'}`}>
         <i className={`bi bi-${data.wet ? 'umbrella' : 'sun'} me-1`} />{data.advice}
       </div>

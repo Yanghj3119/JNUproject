@@ -1,5 +1,6 @@
 // 기상청 단기예보 조회서비스 (VilageFcstInfoService_2.0)
 import { callApi, toList } from './lib.js'
+import { getSunTimes } from './sun.js'
 
 const BASE = 'https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst'
 const SKY = { 1: '맑음', 3: '구름많음', 4: '흐림' }
@@ -71,8 +72,9 @@ export async function getWeather({ place = '', lat, lng } = {}) {
   }))
 
   const wet = forecast.slice(0, 6).some((f) => f.rainy || f.pop >= 60)
+  const sun = await getSunTimes({ lat: la, lng: ln }).catch(() => null) // 일출·일몰 (실패해도 날씨는 그대로)
   return {
-    place: name, grid, now: forecast[0] ?? null, forecast,
+    place: name, grid, now: forecast[0] ?? null, forecast, sun,
     advice: wet ? '비 소식이 있어요. 박물관·전시관 같은 실내 명소를 함께 계획하세요.' : '야외 관광하기 좋은 날씨예요.',
     wet,
   }

@@ -8,6 +8,8 @@ import { useAppStore } from '../store/useAppStore'
 import PlaceCard from '../components/PlaceCard'
 import Status from '../components/Status'
 import WeatherBadge from '../components/WeatherBadge'
+import CrowdChart from '../components/CrowdChart'
+import KakaoMap, { hasKakaoKey } from '../components/KakaoMap'
 
 // 사진 한 장 → get_photo_info(촬영지·시기) → 그 장소의 날씨 · 주변 명소(find_nearby) · 무장애 · 연관 관광지
 export default function PhotoDetail() {
@@ -25,12 +27,14 @@ export default function PhotoDetail() {
   const photo = info.data?.photo
   const gallery = info.data?.gallery?.length ? info.data.gallery : photo ? [photo] : []
   const shown = gallery[picked] ?? photo
+  const heroImage = shown?.image || sp.get('img') // 공모전 수상작 등은 목록에서 넘어온 이미지를 사용
+  const rawMonth = photo?.month || sp.get('m')
 
   const nearby = useAsync(() => (place ? fetchNearby({ lat: place.lat, lng: place.lng, exclude: place.id }) : null), [place?.id])
   const access = useAsync(() => (place ? fetchAccess({ contentId: place.id }) : null), [place?.id])
   const related = useAsync(() => (place ? fetchRelated({ name: place.title, addr: place.addr }) : null), [place?.id])
 
-  const month = monthOf(photo?.month)
+  const month = monthOf(rawMonth)
 
   if (info.loading || info.error) {
     return <Container className="py-4"><Status loading={info.loading} error={info.error} /></Container>
@@ -43,7 +47,7 @@ export default function PhotoDetail() {
       <Row className="g-4 mt-1">
         <Col lg={7}>
           <div className="jp-detail-hero">
-            {shown?.image ? <img src={shown.image} alt={shown.title} /> : <div className="p-5 text-center text-muted">사진이 없어요</div>}
+            {heroImage ? <img src={heroImage} alt={shown?.title || title} /> : <div className="p-5 text-center text-muted">사진이 없어요</div>}
           </div>
           {gallery.length > 1 && (
             <div className="jp-thumbs">
@@ -56,7 +60,7 @@ export default function PhotoDetail() {
           <div className="d-flex justify-content-between align-items-start gap-2">
             <h1 className="h3 fw-bold">{photo?.title || title}</h1>
             <button type="button" className={`btn btn-sm jp-iconbtn fs-4 ${faved ? 'on' : ''}`} aria-label="보관함에 담기"
-              onClick={() => toggle({ source: 'photo', id, title: photo?.title || title, image: shown?.image })}>
+              onClick={() => toggle({ source: 'photo', id, title: photo?.title || title, image: heroImage })}>
               <i className={`bi bi-heart${faved ? '-fill' : ''}`} />
             </button>
           </div>
@@ -86,6 +90,11 @@ export default function PhotoDetail() {
                 </div>
               </div>
               <WeatherBadge lat={place.lat} lng={place.lng} variant="card" />
+              {hasKakaoKey && (
+                <div className="jp-detail-map mt-3">
+                  <KakaoMap spots={[place]} selectedId={place.id} />
+                </div>
+              )}
             </>
           ) : (
             <div className="alert alert-light small mb-0">이 사진의 촬영지에 해당하는 관광지를 찾지 못해 주변 정보는 보여드리지 못해요.</div>
@@ -109,6 +118,9 @@ export default function PhotoDetail() {
                 {access.data?.items?.map((a) => <div key={a.key}><strong>{a.label}</strong><div className="text-muted">{a.value}</div></div>)}
               </div>
             </div>
+
+            <h2 className="h5 jp-section-title mb-3"><i className="bi bi-people text-jp me-2" />방문객 혼잡도 (향후 30일)</h2>
+            <div className="mb-4"><CrowdChart name={place.title} addr={place.addr} /></div>
 
             <h2 className="h5 jp-section-title mb-3"><i className="bi bi-diagram-3 text-jp me-2" />함께 가는 곳</h2>
             <div className="jp-panel">

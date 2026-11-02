@@ -6,6 +6,7 @@ import { useAsync } from '../lib/useAsync'
 import { TYPE_META, typeMeta } from '../lib/format'
 import PageHeader from '../components/PageHeader'
 import Jeju3D from '../components/Jeju3D'
+import KakaoMap from '../components/KakaoMap'
 import PlaceCard from '../components/PlaceCard'
 import Status from '../components/Status'
 import WeatherBadge from '../components/WeatherBadge'
@@ -15,18 +16,20 @@ const TYPES = ['12', '14', '15', '39']
 export default function Map3D() {
   const [type, setType] = useState('12')
   const [sel, setSel] = useState(null)
+  const [view, setView] = useState('3d') // '3d' | 'map'
 
   const spots = useAsync(() => fetchSpots(type), [type])
   const weather = useAsync(() => fetchWeather({ place: '제주시' }), [])
   const nearby = useAsync(() => (sel ? fetchNearby({ lat: sel.lat, lng: sel.lng, radius: 2000, exclude: sel.id }) : null), [sel?.id])
   const access = useAsync(() => (sel ? fetchAccess({ contentId: sel.id }) : null), [sel?.id])
 
-  const pick = (s) => setSel(s)
-
   return (
     <Container>
-      <PageHeader icon="globe-asia-australia" title="3D 제주 지도" sub="핀을 눌러 명소의 날씨·주변 명소·무장애 정보를 확인하세요. 마우스로 돌리고 확대할 수 있어요.">
-        {weather.data?.now && <span className="badge rounded-pill text-bg-info">지금 제주시 {weather.data.now.temp}° · {weather.data.now.rainy ? weather.data.now.rain : weather.data.now.sky} — 하늘이 날씨에 맞게 바뀌어요</span>}
+      <PageHeader icon="globe-asia-australia" title="제주 지도" sub="핀을 눌러 명소의 날씨·주변 명소·무장애 정보를 확인하세요.">
+        <div className="btn-group" role="group" aria-label="지도 보기 방식">
+          <button type="button" className={`btn btn-sm ${view === '3d' ? 'btn-primary' : 'btn-outline-sea'}`} onClick={() => setView('3d')}><i className="bi bi-badge-3d me-1" />3D</button>
+          <button type="button" className={`btn btn-sm ${view === 'map' ? 'btn-primary' : 'btn-outline-sea'}`} onClick={() => setView('map')}><i className="bi bi-map me-1" />지도</button>
+        </div>
       </PageHeader>
 
       <Row className="g-3">
@@ -39,8 +42,14 @@ export default function Map3D() {
                 </button>
               ))}
             </div>
-            <Jeju3D spots={spots.data ?? []} selectedId={sel?.id} onSelect={pick} weather={weather.data?.now} />
-            <div className="jp-map-hint"><i className="bi bi-mouse me-1" />드래그: 회전 · 휠: 확대 · 핀: 선택</div>
+            {view === '3d'
+              ? <Jeju3D spots={spots.data ?? []} selectedId={sel?.id} onSelect={setSel} weather={weather.data?.now} />
+              : <KakaoMap spots={spots.data ?? []} selectedId={sel?.id} onSelect={setSel} />}
+            <div className="jp-map-hint">
+              {view === '3d'
+                ? <><i className="bi bi-mouse me-1" />드래그: 회전 · 휠: 확대 · 핀: 선택 · 날씨에 따라 하늘이 바뀌어요</>
+                : <><i className="bi bi-hand-index me-1" />핀을 눌러 선택하세요</>}
+            </div>
           </div>
           <Status loading={spots.loading} error={spots.error} empty={!spots.loading && !spots.error && !spots.data?.length} emptyText="표시할 장소가 없어요" compact />
         </Col>

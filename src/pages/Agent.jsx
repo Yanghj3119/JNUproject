@@ -10,6 +10,7 @@ const TOOL_LABEL = {
   get_weather: ['cloud-sun', '날씨'],
   check_accessibility: ['universal-access', '무장애 정보'],
   get_related_places: ['diagram-3', '연관 관광지'],
+  get_crowd_forecast: ['people', '혼잡도 예측'],
 }
 
 const SUGGESTIONS = [

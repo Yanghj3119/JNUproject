@@ -15,7 +15,8 @@ npm run dev                    # http://localhost:5173  (화면 + /api 서버 �
 |---|---|
 | `DATA_GO_KR_KEY` | 공공데이터포털 인증키 (Decoding 키). 활용신청이 승인된 모든 API에 공통 |
 | `ANTHROPIC_API_KEY` | AI 가이드 (강사 제공 키) |
-| `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | Supabase (보관함·대화기록) |
+| `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | Supabase (보관함·대화기록). anon/publishable 키만 사용 (service_role 금지) |
+| `VITE_KAKAO_MAP_KEY` | 카카오맵 JavaScript 키 (선택). 카카오 디벨로퍼스 → 앱 → 플랫폼 → Web 에 `http://localhost:5173` 과 배포 주소 등록 |
 
 Supabase 는 `supabase/schema.sql` 을 SQL Editor 에서 실행해 테이블을 만드세요.
 키 점검은 앱의 **/status (연결 상태)** 페이지에서 할 수 있습니다.
@@ -28,6 +29,11 @@ Supabase 는 `supabase/schema.sql` 을 SQL Editor 에서 실행해 테이블을 
 | `get_weather` | 기상청 단기예보 조회서비스 | `server/weather.js` |
 | `check_accessibility` | 한국관광공사 무장애 여행 정보 | `server/access.js` |
 | `get_related_places` | 한국관광공사 관광지별 연관 관광지 정보 | `server/related.js` |
+| 사진 보강 | 한국관광공사 관광공모전(사진) 수상작 정보 | `server/photos.js` |
+| `get_crowd_forecast` | 한국관광공사 관광지 집중률 방문자 추이 예측 | `server/crowd.js` |
+| 일출·일몰 | 한국천문연구원 출몰시각 정보 | `server/sun.js` |
+
+`/api/photos?debug=1` 로 사진 API 원본 응답(필드명·촬영월 형식)을 확인할 수 있습니다.
 
 > `server/photos.js`, `server/related.js` 의 일부 파라미터·필드명은 활용가이드로 실제 호출해 확인이 필요합니다. (/status 에서 실패하면 해당 파일 상단 주석 참고)
 

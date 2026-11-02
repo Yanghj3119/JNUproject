@@ -4,6 +4,7 @@ import { findNearby, resolvePlace, CATEGORY } from './tour.js'
 import { getWeather } from './weather.js'
 import { checkAccessibility } from './access.js'
 import { getRelated } from './related.js'
+import { getCrowd } from './crowd.js'
 
 // ① 도구 설명서: Claude 는 이 설명만 보고 "어떤 도구를 언제 쓸지" 결정한다
 export const tools = [
@@ -71,6 +72,15 @@ export const tools = [
       required: ['place_name'],
     },
   },
+  {
+    name: 'get_crowd_forecast',
+    description: '관광지의 향후 30일 방문객 집중률(혼잡도) 예측을 조회한다. 한적한 날짜를 추천할 때 쓴다. 값이 높을수록 붐빈다.',
+    input_schema: {
+      type: 'object',
+      properties: { place_name: { type: 'string', description: '관광지 이름' } },
+      required: ['place_name'],
+    },
+  },
 ]
 
 // 좌표가 없으면 장소명으로 찾아서 채워 준다
@@ -105,7 +115,12 @@ export const runTool = {
     const known = ['제주시', '서귀포시', '성산', '애월', '한림', '표선', '중문'].includes(place_name)
     const c = known ? {} : await withCoords({ place_name, lat, lng })
     const w = await getWeather({ place: known ? place_name : '', lat: c.lat, lng: c.lng })
-    return { place: w.place, advice: w.advice, forecast: w.forecast.slice(0, 6) }
+    return { place: w.place, advice: w.advice, sun: w.sun, forecast: w.forecast.slice(0, 6) }
+  },
+
+  get_crowd_forecast: async ({ place_name }) => {
+    const c = await getCrowd({ place_name })
+    return { name: c.name, quietest: c.quietest, days: c.days.slice(0, 14) }
   },
 
   check_accessibility: async ({ place_name }) => checkAccessibility({ place_name }),
