@@ -35,8 +35,11 @@ export function checkKakao() {
 //  · spots: 핀 여러 개 (선택하면 onSelect)       — 지도 페이지·사진 상세
 //  · route: [{lat,lng,name}] 순서대로 번호 핀 + 선 — AI 가이드 코스·내 경로
 //  · profile: 'driving' | 'foot' 를 주면 직선 대신 실제 도로·길을 따라 선을 그린다 (onRoad 로 거리·시간을 알려 준다)
-export default function KakaoMap({ spots = [], route, selectedId, onSelect = () => {}, height = '100%', level = 10, profile, onRoad }) {
+//  · links: 점선으로 잇는 선(항로) / labels: 모든 핀에 이름 표시
+//  · numbered: false 면 정류장처럼 점이 많은 경로를 번호 대신 점으로 그린다 / waypoints: 도로 경로에 쓸 최대 경유지 수
+export default function KakaoMap({ spots = [], route, selectedId, onSelect = () => {}, height = '100%', level = 10, profile, onRoad, numbered = true, waypoints = 10, links = [], labels = false }) {
   const box = useRef(null)
+  const fitKey = useRef('')
   const map = useRef(null)
   const drawn = useRef([])
   const [error, setError] = useState(null)
@@ -51,7 +54,7 @@ export default function KakaoMap({ spots = [], route, selectedId, onSelect = () 
     onRoadRef.current?.(null)
     if (!profile || !routeKey) return
     let alive = true
-    roadRoute(route, profile).then((r) => {
+    roadRoute(route, profile, waypoints).then((r) => {
       if (!alive || !r) return
       setRoad(r)
       onRoadRef.current?.({ km: r.km, min: r.min })
@@ -88,15 +91,28 @@ export default function KakaoMap({ spots = [], route, selectedId, onSelect = () 
       add(new kakao.maps.Polyline({ path: line, strokeWeight: road ? 5 : 3, strokeColor: '#0e6f7a', strokeOpacity: road ? 0.9 : 0.7, strokeStyle: road ? 'solid' : 'shortdash' }))
       route.forEach((s, i) => {
         const el = document.createElement('div')
-        el.className = 'jp-num'
-        el.textContent = String(i + 1)
+        const edge = i === 0 || i === route.length - 1
+        if (numbered || edge) {
+          el.className = 'jp-num'
+          el.textContent = numbered ? String(i + 1) : (i === 0 ? '기' : '종') // 정류장이 많은 노선은 번호 대신 점, 처음·끝만 글자로
+        } else el.className = 'jp-dot'
         el.title = s.name
-        add(new kakao.maps.CustomOverlay({ position: path[i], content: el, yAnchor: 0.5, zIndex: 5 }))
+        add(new kakao.maps.CustomOverlay({ position: path[i], content: el, yAnchor: 0.5, zIndex: edge ? 5 : 3 }))
       })
-      if (path.length > 1) map.current.setBounds(bounds, 40, 40, 40, 40)
-      else { map.current.setCenter(path[0]); map.current.setLevel(5) }
-      return
+      // 지도 범위는 노선이 바뀔 때만 맞춘다 (버스 위치가 갱신될 때마다 지도가 움직이지 않게)
+      if (fitKey.current !== routeKey) {
+        fitKey.current = routeKey
+        if (path.length > 1) map.current.setBounds(bounds, 40, 40, 40, 40)
+        else { map.current.setCenter(path[0]); map.current.setLevel(5) }
+      }
     }
+
+    // 점선으로 잇는 선 (항로처럼 출발지 → 목적지): [[{lat,lng},{lat,lng}], …]
+    links.forEach((pair) => {
+      const lp = pair.map((p) => new kakao.maps.LatLng(p.lat, p.lng))
+      lp.forEach((p) => bounds.extend(p))
+      add(new kakao.maps.Polyline({ path: lp, strokeWeight: 3, strokeColor: '#0369a1', strokeOpacity: 0.8, strokeStyle: 'shortdash' }))
+    })
 
     spots.forEach((s) => {
       const pos = new kakao.maps.LatLng(s.lat, s.lng)
@@ -106,17 +122,18 @@ export default function KakaoMap({ spots = [], route, selectedId, onSelect = () 
       el.className = `jp-kpin ${sel ? 'sel' : ''}`
       el.style.setProperty('--c', typeMeta(s.type).color)
       el.title = s.title
-      el.innerHTML = sel ? `<span>${String(s.title).replace(/[<>&]/g, '')}</span>` : ''
+      el.innerHTML = sel || labels ? `<span>${String(s.title).replace(/[<>&]/g, '')}</span>` : ''
       el.onclick = () => onSelect(s)
       add(new kakao.maps.CustomOverlay({ position: pos, content: el, yAnchor: 1, zIndex: sel ? 10 : 1 }))
     })
 
+    if (route?.length) return // 경로 위에 핀을 겹쳐 그린 경우(버스 위치 등)는 위에서 맞춘 범위를 그대로 둔다
     const chosen = spots.find((s) => String(s.id) === String(selectedId))
     if (chosen) map.current.panTo(new kakao.maps.LatLng(chosen.lat, chosen.lng))
     else if (spots.length === 1) { map.current.setCenter(new kakao.maps.LatLng(spots[0].lat, spots[0].lng)); map.current.setLevel(4) }
-    else if (spots.length > 1) map.current.setBounds(bounds)
+    else if (spots.length > 1 || links.length) map.current.setBounds(bounds, 40, 40, 40, 40)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, spots, route, selectedId, road])
+  }, [ready, spots, route, selectedId, road, links, labels])
 
   if (!hasKakaoKey) {
     return (

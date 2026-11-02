@@ -21,17 +21,36 @@ async function request(base, pts) {
   }
 }
 
-export function roadRoute(points, profile = 'driving') {
-  const pts = (points ?? []).filter((p) => Number(p?.lat) && Number(p?.lng)).slice(0, 10)
+const CHUNK = 24 // 한 번에 보낼 경유지 수 (많으면 나눠서 이어 붙인다)
+
+async function routeAll(pts, profile) {
+  const chunks = []
+  for (let i = 0; i < pts.length - 1; i += CHUNK - 1) chunks.push(pts.slice(i, i + CHUNK))
+  const parts = []
+  for (const c of chunks) {
+    if (c.length < 2) continue
+    let res = null
+    for (const base of SERVICES[profile]) {
+      try { res = await request(base, c); break } catch { /* 다음 서비스로 */ }
+    }
+    if (!res) return null
+    parts.push(res)
+  }
+  if (!parts.length) return null
+  return {
+    path: parts.flatMap((p) => p.path),
+    km: Math.round(parts.reduce((s, p) => s + p.km, 0) * 10) / 10,
+    min: parts.reduce((s, p) => s + p.min, 0),
+  }
+}
+
+// points: [{lat,lng}] 방문 순서. maxPoints 를 넘으면 앞에서부터 자른다 (기본 10, 버스 노선처럼 정류장이 많으면 크게)
+export function roadRoute(points, profile = 'driving', maxPoints = 10) {
+  const pts = (points ?? []).filter((p) => Number(p?.lat) && Number(p?.lng)).slice(0, maxPoints)
   if (pts.length < 2 || !SERVICES[profile]) return Promise.resolve(null)
   const key = profile + pts.map((p) => `${Number(p.lng).toFixed(5)},${Number(p.lat).toFixed(5)}`).join(';')
   if (!cache.has(key)) {
-    cache.set(key, (async () => {
-      for (const base of SERVICES[profile]) {
-        try { return await request(base, pts) } catch { /* 다음 서비스로 */ }
-      }
-      return null
-    })().then((res) => { if (!res) cache.delete(key); return res })) // 실패는 저장하지 않아 다시 시도할 수 있다
+    cache.set(key, routeAll(pts, profile).then((res) => { if (!res) cache.delete(key); return res })) // 실패는 저장하지 않아 다시 시도할 수 있다
   }
   return cache.get(key)
 }

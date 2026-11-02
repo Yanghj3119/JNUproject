@@ -57,6 +57,19 @@ export async function searchRoutes({ routeNo = '', limit = 20 } = {}) {
   return toList(body).map((r) => ({ routeId: r.routeid, no: String(r.routeno), type: r.routetp, from: r.startnodenm, to: r.endnodenm }))
 }
 
+// 노선이 지나는 정류소 (정류장 순서대로) — 지도에 노선을 그리는 데 쓴다. 노선은 자주 바뀌지 않아 6시간 캐시
+async function loadRouteStops({ routeId }) {
+  const body = await callApi(`${TAGO}/BusRouteInfoInqireService/getRouteAcctoThrghSttnList`, { _type: 'json', cityCode: CITY, routeId, numOfRows: 400, pageNo: 1 })
+  return toList(body)
+    .map((s) => ({ id: s.nodeid, name: s.nodenm, order: Number(s.nodeord) || 0, lat: Number(s.gpslati), lng: Number(s.gpslong) }))
+    .filter((s) => s.lat > 33 && s.lng > 126)
+    .sort((a, b) => a.order - b.order)
+}
+export function getRouteStops({ routeId } = {}) {
+  if (!routeId) throw new Error('routeId 가 필요해요')
+  return cached(`routestops:${routeId}`, 6 * 3600e3, () => loadRouteStops({ routeId }))
+}
+
 // 노선을 달리는 버스의 현재 위치 (가까운 정류장 기준으로 갱신됨)
 export async function getBusPositions({ routeId } = {}) {
   if (!routeId) throw new Error('routeId 가 필요해요')

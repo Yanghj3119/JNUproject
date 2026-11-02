@@ -188,6 +188,7 @@ h1, h2, h3, h4, h5 { letter-spacing: -0.025em; }
 .jp-kpin { position: relative; width: 18px; height: 18px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); background: var(--c); border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35); cursor: pointer; }
 .jp-kpin.sel { width: 26px; height: 26px; }
 .jp-kpin span { position: absolute; left: 50%; bottom: 130%; transform: translateX(-50%) rotate(45deg); background: var(--jp-ink); color: #fff; padding: 0.2rem 0.65rem; border-radius: 6px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.jp-dot { width: 9px; height: 9px; border-radius: 50%; background: #fff; border: 2px solid #0e6f7a; }
 .jp-num { width: 26px; height: 26px; border-radius: 50%; background: var(--jp-ink); color: #fff; border: 2px solid #fff; display: grid; place-items: center; font-size: 12px; font-weight: 700; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35); }
 
 /* AI 가이드 */

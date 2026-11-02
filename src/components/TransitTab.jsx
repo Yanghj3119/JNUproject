@@ -4,6 +4,7 @@ import { Col, Row } from 'react-bootstrap'
 import { fetchTransit } from '../api/client'
 import { useAsync } from '../lib/useAsync'
 import { mapToLink } from '../lib/kakaoGeo'
+import { PORT_GEO, PORT_POINTS } from '../data/ports'
 import KakaoMap from './KakaoMap'
 import Status from './Status'
 
@@ -90,6 +91,10 @@ function BusPositions() {
   const pos = useAsync(() => (cur ? fetchTransit('positions', { routeId: cur.routeId }) : null), [cur?.routeId, tick])
   const buses = pos.data ?? []
   const pins = useMemo(() => buses.map((b) => ({ id: b.vehicle, title: `${b.route}번 · ${b.vehicle}`, lat: b.lat, lng: b.lng, type: 'busstop' })), [buses])
+  // 노선(정류장 순서) — 지도에 선으로 그린다. 노선은 자주 바뀌지 않아 갱신 때마다 다시 받지 않는다
+  const stops = useAsync(() => (cur ? fetchTransit('routestops', { routeId: cur.routeId }) : null), [cur?.routeId])
+  const routeStops = useMemo(() => (stops.data ?? []).map((s) => ({ lat: s.lat, lng: s.lng, name: s.name })), [stops.data])
+  const [road, setRoad] = useState(null)
 
   return (
     <>
@@ -109,7 +114,14 @@ function BusPositions() {
           </div>
           <Row className="g-3">
             <Col lg={8}>
-              <div className="jp-route-map rounded-3 overflow-hidden border" style={{ height: 400 }}><KakaoMap spots={pins} /></div>
+              <div className="jp-route-map rounded-3 overflow-hidden border" style={{ height: 400 }}>
+                <KakaoMap route={routeStops.length > 1 ? routeStops : undefined} spots={pins} numbered={false} profile="driving" waypoints={200} onRoad={setRoad} />
+              </div>
+              <div className="small text-muted mt-2">
+                {routeStops.length > 1
+                  ? <>{cur?.from} → {cur?.to} · 정류장 {routeStops.length}곳{road ? ` · 도로 기준 약 ${road.km}km` : ''}. 선은 정류장을 도로로 이은 것이라 실제 운행 경로와 조금 다를 수 있어요. <b>기</b>는 기점, <b>종</b>은 종점이에요.</>
+                  : (stops.loading ? '노선을 불러오는 중…' : '이 노선의 정류장 정보를 받지 못해 버스 위치만 표시해요.')}
+              </div>
             </Col>
             <Col lg={4}>
               <div className="jp-panel">
@@ -213,6 +225,16 @@ export function FerryTab() {
   const [port, setPort] = useState('운진항')
   const { data, loading, error } = useAsync(() => fetchTransit('ferries', { port }), [port])
   const now = new Date(Date.now() + 9 * 3600e3).toISOString().slice(11, 16)
+
+  // 지도: 고른 출발 항구(진한 파란 핀)와 오가는 목적지 항구(연한 핀), 항로는 점선
+  const geo = PORT_GEO[port]
+  const pins = useMemo(() => geo ? [
+    ...geo.from.map((n) => ({ id: `f-${n}`, title: n, ...PORT_POINTS[n], type: 'port' })),
+    ...geo.to.filter((n) => !geo.from.includes(n)).map((n) => ({ id: `t-${n}`, title: n, ...PORT_POINTS[n], type: 'portdest' })),
+  ] : [], [geo])
+  const links = useMemo(() => geo ? geo.from.flatMap((f) => geo.to.filter((t) => t !== f).map((t) => [PORT_POINTS[f], PORT_POINTS[t]])) : [], [geo])
+  const goPort = (p) => { const k = p?.id?.startsWith('f-') ? Object.keys(PORT_GEO).find((key) => PORT_GEO[key].from.includes(p.title)) : null; if (k) setPort(k) }
+
   return (
     <>
       <div className="d-flex flex-wrap gap-2 mb-2">
@@ -221,7 +243,12 @@ export function FerryTab() {
         ))}
       </div>
       <p className="small text-muted">
-        출발 항구를 고르면 오늘 운항 예정 시간표가 나와요{data?.note ? ` (${data.note})` : ''}. 예정 시각이라 기상에 따라 결항될 수 있어요.      </p>
+        출발 항구를 고르면 지도에 항구 위치와 항로가 나오고, 오늘 운항 예정 시간표가 아래에 나와요{data?.note ? ` (${data.note})` : ''}. 예정 시각이라 기상에 따라 결항될 수 있어요.
+      </p>
+      <div className="jp-route-map rounded-3 overflow-hidden border mb-3" style={{ height: 320 }}>
+        <KakaoMap spots={pins} links={links} labels onSelect={goPort} />
+      </div>
+      <div className="small text-muted mb-3">진한 파란 핀은 출발 항구, 연한 핀은 오가는 항구예요. 점선은 항로를 간단히 이은 선이고, 항구 위치는 카카오맵 기준이에요.</div>
       <Status loading={loading} error={error} empty={!loading && !error && !data?.sailings?.length} emptyText="오늘 이 항구에서 출발하는 배 정보가 없어요" />
       {data?.sailings?.length > 0 && (
         <div className="table-responsive">

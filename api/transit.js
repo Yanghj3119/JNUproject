@@ -1,5 +1,5 @@
 import { route } from '../server/http.js'
-import { searchStops, nearStops, getArrivals, searchRoutes, getBusPositions, getFlights, getFerries } from '../server/transit.js'
+import { searchStops, nearStops, getArrivals, searchRoutes, getBusPositions, getFlights, getFerries, getRouteStops } from '../server/transit.js'
 
 // /api/transit?kind=stops|arrivals|routes|positions|flights
 const KINDS = {
@@ -8,6 +8,7 @@ const KINDS = {
   arrivals: (q) => getArrivals({ nodeId: q.nodeId }),
   routes: (q) => searchRoutes({ routeNo: q.routeNo }),
   positions: (q) => getBusPositions({ routeId: q.routeId }),
+  routestops: (q) => getRouteStops({ routeId: q.routeId }),
   flights: (q) => getFlights({ direction: q.direction, city: q.city, date: q.date }),
   ferries: (q) => getFerries({ port: q.port, date: q.date }),
 }

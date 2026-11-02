@@ -5,7 +5,9 @@ import { fetchHub } from '../api/client'
 import { useAsync } from '../lib/useAsync'
 import { TRAIL_POINTS } from '../data/trailPoints'
 import { findAddress, findPlace, mapSearchLink, mapToLink, mapWalkLink } from '../lib/kakaoGeo'
+import { roadRoute } from '../lib/routing'
 import KakaoMap from '../components/KakaoMap'
+import Jeju3D from '../components/Jeju3D'
 import PageBanner from '../components/PageBanner'
 import { BusTransit, AirportTab, FerryTab } from '../components/TransitTab'
 import Status from '../components/Status'
@@ -30,6 +32,9 @@ const Select = ({ value, onChange, options, all = '전체', label }) => (
   </select>
 )
 
+// 3D 지도에서 코스를 구분하는 선 색 (밝은 위성사진 위에서도 잘 보이는 진한 색)
+const TRAIL_COLORS = ['#ff3b30', '#ff9500', '#ffd60a', '#34c759', '#00c7be', '#0a84ff', '#bf5af2', '#ff2d92']
+
 const askLink = (text) => `/agent?q=${encodeURIComponent(text)}`
 
 // ── 한라산 둘레길 ─────────────────────────────────────────────
@@ -44,8 +49,33 @@ function TrailTab() {
   const locate = (name) => (TRAIL_POINTS[name] ? Promise.resolve(TRAIL_POINTS[name]) : findPlace(name))
   const pts = useAsync(() => (cur ? Promise.all([locate(cur.start), locate(cur.end)]) : null), [cur?.course])
   const [road, setRoad] = useState(null)
+  const [view, setView] = useState('3d') // '3d' | 'map'
   const [a, b] = pts.data ?? []
   const route = useMemo(() => [a && { lat: a.lat, lng: a.lng, name: cur?.start }, b && { lat: b.lat, lng: b.lng, name: cur?.end }].filter(Boolean), [a, b, cur])
+
+  // 3D 지도용: OpenStreetMap 에 기록된 코스 선(public/data/hallatrail.json) + 기록이 없는 코스는 도보 경로로 대신 그린다
+  const geo = useAsync(() => fetch('/data/hallatrail.json').then((r) => (r.ok ? r.json() : {})).catch(() => ({})), [])
+  const traces = geo.data ?? {}
+  const hasTrace = Boolean(cur && traces[cur.course])
+  const walk = useAsync(() => (cur && !hasTrace && geo.data && a && b ? roadRoute([a, b], 'foot') : null), [cur?.course, hasTrace, Boolean(geo.data), a?.lat, b?.lat])
+  const lines3d = useMemo(() => {
+    const out = list.filter((t) => traces[t.course]).map((t) => ({
+      id: t.course, color: TRAIL_COLORS[list.indexOf(t) % TRAIL_COLORS.length], active: t.course === cur?.course, segments: traces[t.course],
+    }))
+    if (cur && !hasTrace && a && b) {
+      const seg = walk.data?.path ? walk.data.path.map((p) => [p.lat, p.lng]) : [[a.lat, a.lng], [b.lat, b.lng]]
+      out.push({ id: cur.course, color: TRAIL_COLORS[list.indexOf(cur) % TRAIL_COLORS.length], active: true, segments: [seg] })
+    }
+    return out
+  }, [list, traces, cur, hasTrace, a, b, walk.data])
+  const legend = useMemo(() => lines3d.map((l) => ({ course: l.id, color: l.color })), [lines3d])
+  const pins3d = useMemo(() => [a && { id: 'start', title: `시점 · ${cur?.start}`, lat: a.lat, lng: a.lng, type: 'trail' }, b && { id: 'end', title: `종점 · ${cur?.end}`, lat: b.lat, lng: b.lng, type: 'trail' }].filter(Boolean), [a, b, cur])
+  const focus = useMemo(() => {
+    const act = lines3d.find((l) => l.active)
+    const all = act ? act.segments.flat() : []
+    if (all.length) return { lat: all.reduce((s, p) => s + p[0], 0) / all.length, lng: all.reduce((s, p) => s + p[1], 0) / all.length }
+    return a && b ? { lat: (a.lat + b.lat) / 2, lng: (a.lng + b.lng) / 2 } : null
+  }, [lines3d, a, b])
 
   return (
     <>
@@ -71,18 +101,42 @@ function TrailTab() {
           {cur && (
             <Row className="g-3">
               <Col lg={8}>
-                <div className="jp-route-map rounded-3 overflow-hidden border" style={{ height: 380 }}>
-                  {route.length ? <KakaoMap route={route} profile="foot" onRoad={setRoad} /> : (
-                    <div className="h-100 d-grid text-muted text-center p-4" style={{ placeItems: 'center' }}>
-                      {pts.loading ? '위치를 찾는 중…' : '시점·종점 위치를 지도에서 찾지 못했어요. 오른쪽 버튼으로 카카오맵에서 직접 검색해 보세요.'}
-                    </div>
-                  )}
+                <div className="btn-group btn-group-sm mb-2" role="group" aria-label="지도 보기 방식">
+                  <button type="button" className={`btn ${view === '3d' ? 'btn-primary' : 'btn-outline-sea'}`} onClick={() => setView('3d')}><i className="bi bi-badge-3d me-1" />3D 지도</button>
+                  <button type="button" className={`btn ${view === 'map' ? 'btn-primary' : 'btn-outline-sea'}`} onClick={() => setView('map')}><i className="bi bi-map me-1" />평면 지도</button>
                 </div>
+                {view === '3d' ? (
+                  <div className="jp-map" style={{ height: 460, minHeight: 0 }}>
+                    <Jeju3D spots={pins3d} lines={lines3d} focus={focus} exaggeration={3} />
+                    <div className="jp-map-hint"><i className="bi bi-mouse me-1" />드래그: 회전 · 휠: 확대 · 굵은 선이 선택한 코스</div>
+                  </div>
+                ) : (
+                  <div className="jp-route-map rounded-3 overflow-hidden border" style={{ height: 460 }}>
+                    {route.length ? <KakaoMap route={route} profile="foot" onRoad={setRoad} /> : (
+                      <div className="h-100 d-grid text-muted text-center p-4" style={{ placeItems: 'center' }}>
+                        {pts.loading ? '위치를 찾는 중…' : '시점·종점 위치를 지도에서 찾지 못했어요. 오른쪽 버튼으로 카카오맵에서 직접 검색해 보세요.'}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {view === '3d' && (
+                  <div className="d-flex flex-wrap gap-2 mt-2 small">
+                    {legend.map((l) => (
+                      <button key={l.course} type="button" className="btn btn-sm btn-link p-0 text-decoration-none text-body" onClick={() => setSelName(l.course)}>
+                        <span style={{ display: 'inline-block', width: 18, height: 4, background: l.color, borderRadius: 2, verticalAlign: 'middle', marginRight: 5 }} />{l.course}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 {route.length > 1 && (
                   <div className="small text-muted mt-2">
-                    {road
-                      ? `지도의 선은 시점에서 종점까지 걷는 길(OpenStreetMap 기준)이에요. 도보 약 ${road.km}km · ${road.min >= 60 ? `${Math.floor(road.min / 60)}시간 ` : ''}${road.min % 60}분 안내값이라 실제 탐방로(${cur.km ?? '-'}km)와 다를 수 있어요. 탐방 전에 공식 안내를 확인하세요.`
-                      : '경로를 불러오는 중이에요. 불러오지 못하면 점선(직선)으로 보여요. 실제 탐방로는 카카오맵 도보 길찾기로 확인하세요.'}
+                    {view === '3d'
+                      ? (hasTrace
+                        ? `선은 OpenStreetMap에 기록된 실제 탐방로예요. 시점·종점 핀은 ${a?.addr?.includes('대략') || b?.addr?.includes('대략') ? '대략적인 ' : ''}위치입니다. 탐방 전에 공식 안내를 확인하세요.`
+                        : (walk.data ? `이 코스는 기록된 탐방로가 없어 시점에서 종점까지 걷는 길(OpenStreetMap 기준, 도보 약 ${walk.data.km}km)로 그렸어요. 실제 탐방로(${cur.km ?? '-'}km)와 다를 수 있어요.` : '이 코스의 탐방로 선이 없어 시점과 종점만 표시해요. 경로를 불러오는 중이거나 불러오지 못했어요.'))
+                      : (road
+                        ? `지도의 선은 시점에서 종점까지 걷는 길(OpenStreetMap 기준)이에요. 도보 약 ${road.km}km · ${road.min >= 60 ? `${Math.floor(road.min / 60)}시간 ` : ''}${road.min % 60}분 안내값이라 실제 탐방로(${cur.km ?? '-'}km)와 다를 수 있어요. 탐방 전에 공식 안내를 확인하세요.`
+                        : '경로를 불러오는 중이에요. 불러오지 못하면 점선(직선)으로 보여요. 실제 탐방로는 카카오맵 도보 길찾기로 확인하세요.')}
                   </div>
                 )}
               </Col>

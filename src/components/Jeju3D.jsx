@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { OrbitControls, Sky, Stars } from '@react-three/drei'
+import { Line, OrbitControls, Sky, Stars } from '@react-three/drei'
 import { typeMeta } from '../lib/format'
 import { loadTerrain } from '../lib/terrain'
 import JejuStylized from './JejuStylized'
@@ -299,6 +299,20 @@ function Pins({ spots, terrain, exag, selectedId, onSelect }) {
   )
 }
 
+// 지형 위에 얹는 경로선 (둘레길·버스 노선 등). lines: [{ id, color, active, segments: [[[lat,lng], …], …] }]
+function RouteLines({ lines, terrain, exag }) {
+  const items = useMemo(() => lines.map((l) => ({
+    ...l,
+    pts: (l.segments ?? []).filter((s) => s.length > 1).map((seg) => seg.map(([lat, lng]) => {
+      const [x, z] = terrain.project(lat, lng)
+      return [x, (terrain.heightAt(x, z) / terrain.UNIT) * exag + 0.02, z]
+    })),
+  })), [lines, terrain, exag])
+  return items.flatMap((l) => l.pts.map((p, i) => (
+    <Line key={`${l.id}-${i}`} points={p} color={l.color} lineWidth={l.active ? 4.5 : 2} transparent opacity={l.active ? 1 : 0.5} />
+  )))
+}
+
 function GeoLabels({ terrain, exag }) {
   return LANDMARKS.map((l) => {
     const [x, z] = terrain.project(l.lat, l.lng)
@@ -407,7 +421,7 @@ function CameraRig({ controls, target }) {
   return null
 }
 
-function Scene({ terrain, spots, selectedId, onSelect, weather, sun, override, regional, exag }) {
+function Scene({ terrain, spots, selectedId, onSelect, weather, sun, override, regional, exag, lines, focus }) {
   const atm = atmosphere(weather, sun, override)
   const controls = useRef()
   const az = THREE.MathUtils.degToRad(atm.az)
@@ -415,11 +429,14 @@ function Scene({ terrain, spots, selectedId, onSelect, weather, sun, override, r
   // 방위각은 북쪽 기준 시계 방향 (북쪽 = −z, 동쪽 = +x)
   const sunDir = [Math.sin(az) * Math.cos(el), Math.sin(el), -Math.cos(az) * Math.cos(el)]
   const sel = spots.find((s) => String(s.id) === String(selectedId))
+  const focusKey = focus ? `${focus.lat},${focus.lng}` : ''
   const target = useMemo(() => {
-    if (!sel) return null
-    const [x, z] = terrain.project(sel.lat, sel.lng)
+    const at = sel ?? focus // 핀을 고르지 않았으면 focus(보고 싶은 중심)로 이동
+    if (!at) return null
+    const [x, z] = terrain.project(at.lat, at.lng)
     return [x, (terrain.heightAt(x, z) / terrain.UNIT) * exag, z]
-  }, [sel, terrain, exag])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sel, focusKey, terrain, exag])
 
   // 시간대·날씨에 맞춘 화면 밝기, 그리고 낮에는 바다색을 하늘색 쪽으로 밝게
   const { gl } = useThree()
@@ -443,6 +460,7 @@ function Scene({ terrain, spots, selectedId, onSelect, weather, sun, override, r
       <Terrain terrain={terrain} exag={exag} />
       <GeoLabels terrain={terrain} exag={exag} />
       {regional?.length > 0 && <RegionWeather terrain={terrain} exag={exag} items={regional} />}
+      {lines?.length > 0 && <RouteLines lines={lines} terrain={terrain} exag={exag} />}
       <Pins spots={spots} terrain={terrain} exag={exag} selectedId={selectedId} onSelect={onSelect} />
       <Weather atm={atm} />
 
@@ -455,7 +473,8 @@ function Scene({ terrain, spots, selectedId, onSelect, weather, sun, override, r
 // spots: [{id,title,lat,lng,type}]
 // weather: 날씨 API 의 now 값 ({sky, rainy, rain, wind}) / sun: {sunrise, sunset} / override: 'day'|'night'|null (낮·밤 강제)
 // regional: [{place, lat, lng, temp, sky, rain, rainy, pop}] 지역별 날씨 라벨 / exaggeration: 고도 과장 배율
-export default function Jeju3D({ spots = [], selectedId, onSelect = () => {}, weather, sun, override = null, regional = [], exaggeration = 3 }) {
+// lines: 지형 위 경로선 [{id,color,active,segments}] / focus: {lat,lng} 카메라가 향할 중심
+export default function Jeju3D({ spots = [], selectedId, onSelect = () => {}, weather, sun, override = null, regional = [], exaggeration = 3, lines, focus }) {
   const [terrain, setTerrain] = useState(null)
   const [error, setError] = useState(null)
   const [pct, setPct] = useState(0)
@@ -486,7 +505,7 @@ export default function Jeju3D({ spots = [], selectedId, onSelect = () => {}, we
           dpr={[1, 2]}
           onPointerMissed={() => onSelect(null)}
         >
-          <Scene terrain={terrain} spots={spots} selectedId={selectedId} onSelect={onSelect} weather={weather} sun={sun} override={override} regional={regional} exag={exaggeration} />
+          <Scene terrain={terrain} spots={spots} selectedId={selectedId} onSelect={onSelect} weather={weather} sun={sun} override={override} regional={regional} exag={exaggeration} lines={lines} focus={focus} />
         </Canvas>
       )}
     </div>
