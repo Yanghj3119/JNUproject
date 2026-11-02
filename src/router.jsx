@@ -4,6 +4,7 @@ import Home from './pages/Home'
 import Explore from './pages/Explore'
 import PhotoDetail from './pages/PhotoDetail'
 import Map3D from './pages/Map3D'
+import Info from './pages/Info'
 import Agent from './pages/Agent'
 import My from './pages/My'
 import Login from './pages/Login'
@@ -17,6 +18,7 @@ export const NAV_ITEMS = [
   { to: '/agent', label: 'AI 가이드', icon: 'stars', ai: true },
   { to: '/explore', label: '사진 탐색', icon: 'images' },
   { to: '/map', label: '지도', icon: 'map' },
+  { to: '/info', label: '여행 정보', icon: 'info-circle' },
   { to: '/my', label: '내 보관함', icon: 'bookmark' },
 ]
 
@@ -31,6 +33,7 @@ export const router = createBrowserRouter([
       { path: 'explore', element: <Explore /> },
       { path: 'photo/:id', element: <PhotoDetail /> },
       { path: 'map', element: <Map3D /> },
+      { path: 'info', element: <Info /> },
       { path: 'my', element: <My /> },
       { path: 'login', element: <Login /> },
       { path: 'status', element: <StatusPage /> },

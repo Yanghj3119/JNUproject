@@ -12,7 +12,10 @@ function loadKakao() {
     const s = document.createElement('script')
     s.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${KEY}&autoload=false`
     s.onload = () => window.kakao.maps.load(() => resolve(window.kakao))
-    s.onerror = () => { sdk = null; reject(new Error('카카오맵을 불러오지 못했어요. 키와 허용 도메인(Web 플랫폼)을 확인하세요.')) }
+    s.onerror = () => {
+      sdk = null
+      reject(new Error(`카카오맵을 불러오지 못했어요. ① JavaScript 키인지 ② 카카오 앱의 Web 플랫폼에 ${window.location.origin} 이 등록됐는지 ③ 제품 설정에서 '카카오맵' 사용이 ON 인지 확인하세요.`))
+    }
     document.head.appendChild(s)
   })
   return sdk

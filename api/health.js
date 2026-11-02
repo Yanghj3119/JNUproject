@@ -7,6 +7,7 @@ import { getRelated } from '../server/related.js'
 import { searchAwardPhotos } from '../server/photos.js'
 import { getCrowd } from '../server/crowd.js'
 import { getSunTimes } from '../server/sun.js'
+import { listHubPlaces, getTrails } from '../server/hub.js'
 
 // 각 공공데이터 API 를 1건씩 불러 보고 성공/실패를 알려 준다 (활용신청 승인 여부 확인용)
 const time = async (name, fn) => {
@@ -26,6 +27,8 @@ export default route(async () => {
     time('관광공모전(사진) 수상작', () => searchAwardPhotos({ rows: 1 })),
     time('관광지 집중률 예측', () => getCrowd({ place_name: '성산일출봉', addr: '제주특별자치도 서귀포시' })),
     time('출몰시각 정보', () => getSunTimes({ lat: 33.4584, lng: 126.9425 })),
+    time('제주데이터허브 (오름)', () => listHubPlaces({ kind: 'oreum', name: '돌오름' })),
+    time('제주데이터허브 (한라산 둘레길)', () => getTrails({})),
   ])
-  return { checks, keys: { dataGoKr: Boolean(process.env.DATA_GO_KR_KEY), anthropic: Boolean(process.env.ANTHROPIC_API_KEY) } }
+  return { checks, keys: { dataGoKr: Boolean(process.env.DATA_GO_KR_KEY), jejuHub: Boolean(process.env.JEJU_DATAHUB_KEY), anthropic: Boolean(process.env.ANTHROPIC_API_KEY) } }
 })

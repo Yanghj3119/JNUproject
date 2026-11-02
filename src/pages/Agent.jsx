@@ -13,6 +13,12 @@ const TOOL_LABEL = {
   get_related_places: ['diagram-3', '연관 관광지'],
   get_crowd_forecast: ['people', '혼잡도 예측'],
   propose_route: ['signpost', '코스 만들기'],
+  search_jeju_places: ['geo-alt', '오름·박물관·기념품'],
+  search_lodging: ['building', '숙박 정보'],
+  get_beach_water_quality: ['water', '해수욕장 수질'],
+  get_hallasan_trails: ['tree', '한라산 둘레길'],
+  get_traffic_accident_spots: ['exclamation-triangle', '사고 다발지역'],
+  search_bus_stops: ['bus-front', '버스 정류소'],
 }
 
 const SUGGESTIONS = [

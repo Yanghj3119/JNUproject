@@ -40,8 +40,14 @@ export const TYPE_META = {
   32: { label: '숙박', color: '#8d6e63', icon: 'house' },
   38: { label: '쇼핑', color: '#e5b700', icon: 'bag' },
   39: { label: '음식점', color: '#2fb36b', icon: 'cup-hot' },
+  // 제주데이터허브 (문자 키)
+  oreum: { label: '오름', color: '#3f8f52', icon: 'triangle' },
+  museum: { label: '박물관·미술관', color: '#7b61ff', icon: 'bank2' },
+  souvenir: { label: '기념품', color: '#c9702a', icon: 'bag-heart' },
+  accident: { label: '사고 다발', color: '#d64545', icon: 'exclamation-triangle' },
+  busstop: { label: '버스 정류소', color: '#1f7ae0', icon: 'bus-front' },
 }
-export const typeMeta = (t) => TYPE_META[Number(t)] ?? { label: '명소', color: '#ff8a1f', icon: 'geo-alt' }
+export const typeMeta = (t) => TYPE_META[t] ?? TYPE_META[Number(t)] ?? { label: '명소', color: '#ff8a1f', icon: 'geo-alt' }
 
 export const SKY_ICON = { 맑음: 'brightness-high', 구름많음: 'cloud-sun', 흐림: 'cloud' }
 export const skyIcon = (w) => (w?.rainy ? 'cloud-rain' : (SKY_ICON[w?.sky] ?? 'cloud-sun'))

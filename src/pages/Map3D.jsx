@@ -11,7 +11,7 @@ import PlaceCard from '../components/PlaceCard'
 import Status from '../components/Status'
 import WeatherBadge from '../components/WeatherBadge'
 
-const TYPES = ['12', '14', '15', '39']
+const TYPES = ['12', '14', '15', '39', 'oreum', 'museum', 'souvenir'] // 숫자: 한국관광공사 / 문자: 제주데이터허브
 
 export default function Map3D() {
   const [type, setType] = useState('12')
@@ -21,7 +21,8 @@ export default function Map3D() {
   const spots = useAsync(() => fetchSpots(type), [type])
   const weather = useAsync(() => fetchWeather({ place: '제주시' }), [])
   const nearby = useAsync(() => (sel ? fetchNearby({ lat: sel.lat, lng: sel.lng, radius: 2000, exclude: sel.id }) : null), [sel?.id])
-  const access = useAsync(() => (sel ? fetchAccess({ contentId: sel.id }) : null), [sel?.id])
+  // 무장애 정보는 한국관광공사 장소(contentId)만 조회 가능 — 제주데이터허브 장소(hub)는 건너뜀
+  const access = useAsync(() => (sel && !sel.hub ? fetchAccess({ contentId: sel.id }) : null), [sel?.id])
 
   return (
     <Container>
@@ -76,11 +77,17 @@ export default function Map3D() {
                     href={`https://map.kakao.com/link/to/${encodeURIComponent(sel.title)},${sel.lat},${sel.lng}`}><i className="bi bi-sign-turn-right me-1" />길찾기</a>
                 </div>
 
-                <h3 className="h6 fw-bold"><i className="bi bi-universal-access text-jp me-1" />무장애 정보</h3>
-                <Status loading={access.loading} error={access.error} empty={!access.loading && !access.error && !access.data?.items?.length} emptyText="등록된 정보가 없어요" compact />
-                <div className="jp-access mb-3">
-                  {access.data?.items?.slice(0, 6).map((a) => <div key={a.key}><strong>{a.label}</strong><div className="text-muted">{a.value}</div></div>)}
-                </div>
+                {sel.hub ? (
+                  sel.url && <a className="btn btn-sm btn-outline-sea mb-3" target="_blank" rel="noreferrer" href={sel.url}><i className="bi bi-map me-1" />카카오맵에서 보기</a>
+                ) : (
+                  <>
+                    <h3 className="h6 fw-bold"><i className="bi bi-universal-access text-jp me-1" />무장애 정보</h3>
+                    <Status loading={access.loading} error={access.error} empty={!access.loading && !access.error && !access.data?.items?.length} emptyText="등록된 정보가 없어요" compact />
+                    <div className="jp-access mb-3">
+                      {access.data?.items?.slice(0, 6).map((a) => <div key={a.key}><strong>{a.label}</strong><div className="text-muted">{a.value}</div></div>)}
+                    </div>
+                  </>
+                )}
 
                 <h3 className="h6 fw-bold"><i className="bi bi-signpost-split text-jp me-1" />주변 2km</h3>
                 <Status loading={nearby.loading} error={nearby.error} empty={!nearby.loading && !nearby.error && !nearby.data?.length} emptyText="주변 명소가 없어요" compact />

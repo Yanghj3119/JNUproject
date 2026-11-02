@@ -33,6 +33,18 @@ Supabase 는 `supabase/schema.sql` 을 SQL Editor 에서 실행해 테이블을 
 | `get_crowd_forecast` | 한국관광공사 관광지 집중률 방문자 추이 예측 | `server/crowd.js` |
 | 일출·일몰 | 한국천문연구원 출몰시각 정보 | `server/sun.js` |
 
+### 제주데이터허브 (`server/hub.js`, 키: `JEJU_DATAHUB_KEY`)
+호출 형식 `https://open.jejudatahub.net/api/proxy/{API 고유 ID}/{프로젝트 키}?변수=값`. 프로젝트 키는 제주데이터허브 마이페이지에서 프로젝트를 만들고 신청한 API 를 담으면 발급됩니다.
+
+| 용도 | API | 화면 |
+|---|---|---|
+| 오름·박물관/미술관·기념품 위치 | 오름 위치 정보 외 2종 | 지도 페이지 핀 + AI 도구 `search_jeju_places` |
+| 해수욕장 수질 | 제주 해수욕장 수질 조사 정보 | 여행 정보 탭 + `get_beach_water_quality` |
+| 한라산 둘레길 | 한라산 둘레길 코스별 정보 | 여행 정보 탭 + `get_hallasan_trails` |
+| 교통사고 다발지역 | 교통사고 다발지역 정보 | 여행 정보 탭 + `get_traffic_accident_spots` |
+| 버스 정류소 | 버스 정류소 기본 정보 | 여행 정보 탭 + `search_bus_stops` |
+| 숙박 | 관광 숙박업 정보 | 여행 정보 탭 + `search_lodging` |
+
 `/api/photos?debug=1` 로 사진 API 원본 응답(필드명·촬영월 형식)을 확인할 수 있습니다.
 
 > `server/photos.js`, `server/related.js` 의 일부 파라미터·필드명은 활용가이드로 실제 호출해 확인이 필요합니다. (/status 에서 실패하면 해당 파일 상단 주석 참고)

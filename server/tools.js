@@ -5,6 +5,7 @@ import { getWeather } from './weather.js'
 import { checkAccessibility } from './access.js'
 import { getRelated } from './related.js'
 import { getCrowd } from './crowd.js'
+import { listHubPlaces, PLACE_KIND_NAMES, searchLodging, getBeachQuality, getTrails, getAccidentSpots, searchBusStops } from './hub.js'
 
 // ① 도구 설명서: Claude 는 이 설명만 보고 "어떤 도구를 언제 쓸지" 결정한다
 export const tools = [
@@ -82,6 +83,55 @@ export const tools = [
     },
   },
   {
+    name: 'search_jeju_places',
+    description: '제주데이터허브 데이터로 오름·박물관/미술관·기념품 가게를 찾는다. name 으로 이름 검색하거나, near 에 기준 장소를 주면 가까운 순으로 돌려준다. 비 오는 날 실내 대안(박물관·미술관)이나 오름 추천에 쓴다.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        kind: { type: 'string', enum: Object.keys(PLACE_KIND_NAMES), description: '종류' },
+        name: { type: 'string', description: '장소 이름 일부 (선택)' },
+        near: { type: 'string', description: '기준 장소 이름 (예: 성산일출봉). 주면 가까운 순' },
+      },
+      required: ['kind'],
+    },
+  },
+  {
+    name: 'search_lodging',
+    description: '제주 관광 숙박업(관광호텔·가족호텔·호스텔·휴양콘도 등) 정보를 이름·업종으로 조회한다. 객실 수와 주소를 돌려준다.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: '사업장명 일부 (선택)' },
+        type: { type: 'string', enum: ['가족호텔업', '관광호텔업', '소형호텔업', '의료관광호텔업', '호스텔업', '휴양콘도미니엄업'], description: '업종 (선택)' },
+      },
+    },
+  },
+  {
+    name: 'get_beach_water_quality',
+    description: '제주 해수욕장의 수질 조사 결과(대장균·장구균, 적합 여부)를 조회한다. 해수욕·물놀이 질문에 쓴다.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        beach: { type: 'string', description: '해수욕장명 (곽지, 금능, 김녕, 사계, 삼양, 세화, 소금막, 쇠소깍, 신양섭지, 월정, 이호테우, 중문색달, 평대, 표선, 하도, 함덕, 협재, 화순금모래)' },
+      },
+    },
+  },
+  {
+    name: 'get_hallasan_trails',
+    description: '한라산 둘레길 코스(코스명·거리 km·시점·종점)를 조회한다. 걷기·트레킹 여행 질문에 쓴다.',
+    input_schema: { type: 'object', properties: { course: { type: 'string', description: '코스명 (선택)' } } },
+  },
+  {
+    name: 'get_traffic_accident_spots',
+    description: '제주 교통사고 다발지역(발생 건수 순)을 조회한다. 렌터카·운전 여행자에게 주의 구간을 알려 줄 때 쓴다.',
+    input_schema: { type: 'object', properties: { sigungu: { type: 'string', enum: ['제주시', '서귀포시'] } } },
+  },
+  {
+    name: 'search_bus_stops',
+    description: '제주 버스 정류소를 이름으로 검색한다 (정류소 ID·주소·방향·좌표). 도착 시각은 제공하지 않는다.',
+    input_schema: { type: 'object', properties: { name: { type: 'string', description: '정류소 이름 일부' } }, required: ['name'] },
+  },
+  {
     name: 'propose_route',
     description: '사용자에게 보여 줄 여행 코스(경로)를 만든다. 코스·일정·동선을 추천할 때, 다른 도구로 장소를 확인한 뒤 방문 순서대로 3~6곳을 넣어 마지막에 한 번 호출한다. 각 장소는 실제 관광지 이름이어야 한다.',
     input_schema: {
@@ -140,6 +190,23 @@ export const runTool = {
     const w = await getWeather({ place: known ? place_name : '', lat: c.lat, lng: c.lng })
     return { place: w.place, advice: w.advice, sun: w.sun, forecast: w.forecast.slice(0, 6) }
   },
+
+  search_jeju_places: async ({ kind, name = '', near = '' }) => {
+    let list = await listHubPlaces({ kind: PLACE_KIND_NAMES[kind], name })
+    if (near) {
+      const c = await withCoords({ place_name: near })
+      const d = Math.PI / 180
+      const km = (p) => Math.hypot((p.lng - c.lng) * d * Math.cos(c.lat * d), (p.lat - c.lat) * d) * 6371
+      list = list.map((p) => ({ ...p, km: Math.round(km(p) * 10) / 10 })).sort((a, b) => a.km - b.km)
+    }
+    return list.slice(0, 8).map(({ title, addr, lat, lng, km }) => ({ title, addr, lat, lng, km_from_base: km }))
+  },
+  search_lodging: async ({ name, type }) => (await searchLodging({ name, type, limit: 10 })),
+  get_beach_water_quality: async ({ beach }) => getBeachQuality({ beach, limit: 12 }),
+  get_hallasan_trails: async ({ course }) => getTrails({ course, limit: 12 }),
+  get_traffic_accident_spots: async ({ sigungu }) =>
+    (await getAccidentSpots({ sigungu, limit: 8 })).map(({ lat: _la, lng: _ln, ...a }) => a),
+  search_bus_stops: async ({ name }) => (await searchBusStops({ name, limit: 8 })).map(({ lat: _la, lng: _ln, ...s }) => s),
 
   // 장소 이름들을 실제 좌표로 확인하고, 구간 거리(km)를 계산해 코스로 묶는다
   propose_route: async ({ title = '제주 코스', stops = [] }) => {

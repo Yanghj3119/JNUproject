@@ -25,6 +25,8 @@ export default function StatusPage() {
         {row('Supabase', isSupabaseReady, isSupabaseReady ? '' : '.env.local 의 VITE_SUPABASE_* 값이 필요해요')}
         {data && row('서버 함수 /api', true)}
         {data && row('공공데이터포털 키', data.keys.dataGoKr, data.keys.dataGoKr ? '' : 'DATA_GO_KR_KEY 가 없어요')}
+        {data && row('제주데이터허브 프로젝트 키', data.keys.jejuHub, data.keys.jejuHub ? '' : 'JEJU_DATAHUB_KEY 가 없어요')}
+        {row('카카오맵 키', Boolean(import.meta.env.VITE_KAKAO_MAP_KEY), import.meta.env.VITE_KAKAO_MAP_KEY ? `허용 도메인에 ${window.location.origin} 등록 필요` : 'VITE_KAKAO_MAP_KEY 가 없어요')}
         {data && row('Claude 키 (AI 가이드)', data.keys.anthropic, data.keys.anthropic ? '' : 'ANTHROPIC_API_KEY 가 없어요')}
         {data?.checks.map((c) => row(c.name, c.ok, c.ok ? `${c.ms}ms` : c.error))}
       </ul>

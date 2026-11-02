@@ -1,4 +1,8 @@
 import { route } from '../server/http.js'
 import { listSpots } from '../server/tour.js'
+import { listHubPlaces } from '../server/hub.js'
 
-export default route(({ type }) => listSpots({ type }), { ttl: 3600 })
+const HUB_KINDS = ['oreum', 'museum', 'souvenir']
+
+// type 이 oreum|museum|souvenir 이면 제주데이터허브, 숫자(12·14·15·39)면 한국관광공사
+export default route(({ type }) => (HUB_KINDS.includes(type) ? listHubPlaces({ kind: type }) : listSpots({ type })), { ttl: 3600 })
