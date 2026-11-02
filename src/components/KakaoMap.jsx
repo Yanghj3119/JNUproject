@@ -18,11 +18,13 @@ function loadKakao() {
   return sdk
 }
 
-// spots: [{id,title,lat,lng,type}] — 선택하면 onSelect(spot). 장소 1곳만 보여 줄 때는 spots 에 1개, interactive={false}
-export default function KakaoMap({ spots = [], selectedId, onSelect = () => {}, height = '100%', level = 10 }) {
+// 두 가지 모드
+//  · spots: 핀 여러 개 (선택하면 onSelect)       — 지도 페이지·사진 상세
+//  · route: [{lat,lng,name}] 순서대로 번호 핀 + 선 — AI 가이드 코스·내 경로
+export default function KakaoMap({ spots = [], route, selectedId, onSelect = () => {}, height = '100%', level = 10 }) {
   const box = useRef(null)
   const map = useRef(null)
-  const overlays = useRef([])
+  const drawn = useRef([])
   const [error, setError] = useState(null)
   const [ready, setReady] = useState(false)
 
@@ -40,9 +42,26 @@ export default function KakaoMap({ spots = [], selectedId, onSelect = () => {}, 
   useEffect(() => {
     if (!ready) return
     const kakao = window.kakao
-    overlays.current.forEach((o) => o.setMap(null))
-    overlays.current = []
+    drawn.current.forEach((o) => o.setMap(null))
+    drawn.current = []
     const bounds = new kakao.maps.LatLngBounds()
+    const add = (obj) => { obj.setMap(map.current); drawn.current.push(obj) }
+
+    if (route?.length) {
+      const path = route.map((s) => new kakao.maps.LatLng(s.lat, s.lng))
+      path.forEach((p) => bounds.extend(p))
+      add(new kakao.maps.Polyline({ path, strokeWeight: 4, strokeColor: '#0e6f7a', strokeOpacity: 0.85, strokeStyle: 'solid' }))
+      route.forEach((s, i) => {
+        const el = document.createElement('div')
+        el.className = 'jp-num'
+        el.textContent = String(i + 1)
+        el.title = s.name
+        add(new kakao.maps.CustomOverlay({ position: path[i], content: el, yAnchor: 0.5, zIndex: 5 }))
+      })
+      if (path.length > 1) map.current.setBounds(bounds, 40, 40, 40, 40)
+      else { map.current.setCenter(path[0]); map.current.setLevel(5) }
+      return
+    }
 
     spots.forEach((s) => {
       const pos = new kakao.maps.LatLng(s.lat, s.lng)
@@ -52,11 +71,9 @@ export default function KakaoMap({ spots = [], selectedId, onSelect = () => {}, 
       el.className = `jp-kpin ${sel ? 'sel' : ''}`
       el.style.setProperty('--c', typeMeta(s.type).color)
       el.title = s.title
-      el.innerHTML = sel ? `<span>${s.title.replace(/[<>&]/g, '')}</span>` : ''
+      el.innerHTML = sel ? `<span>${String(s.title).replace(/[<>&]/g, '')}</span>` : ''
       el.onclick = () => onSelect(s)
-      const ov = new kakao.maps.CustomOverlay({ position: pos, content: el, yAnchor: 1, zIndex: sel ? 10 : 1 })
-      ov.setMap(map.current)
-      overlays.current.push(ov)
+      add(new kakao.maps.CustomOverlay({ position: pos, content: el, yAnchor: 1, zIndex: sel ? 10 : 1 }))
     })
 
     const chosen = spots.find((s) => String(s.id) === String(selectedId))
@@ -64,14 +81,14 @@ export default function KakaoMap({ spots = [], selectedId, onSelect = () => {}, 
     else if (spots.length === 1) { map.current.setCenter(new kakao.maps.LatLng(spots[0].lat, spots[0].lng)); map.current.setLevel(4) }
     else if (spots.length > 1) map.current.setBounds(bounds)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, spots, selectedId])
+  }, [ready, spots, route, selectedId])
 
   if (!hasKakaoKey) {
     return (
-      <div className="d-grid place-items-center text-center text-muted p-4" style={{ height, background: '#eef6fa' }}>
+      <div className="d-grid text-center text-muted p-4" style={{ height, background: '#eef3f4', placeItems: 'center' }}>
         <div>
-          <i className="bi bi-map display-5 text-jp" />
-          <p className="mt-2 mb-0 small">카카오 지도 키(<code>VITE_KAKAO_MAP_KEY</code>)를 넣으면 실제 지도가 보여요.</p>
+          <i className="bi bi-map fs-1 text-jp" />
+          <p className="mt-2 mb-0 small">카카오 지도 키(<code>VITE_KAKAO_MAP_KEY</code>)를 넣으면 지도가 보여요.</p>
         </div>
       </div>
     )

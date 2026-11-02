@@ -81,6 +81,29 @@ export const tools = [
       required: ['place_name'],
     },
   },
+  {
+    name: 'propose_route',
+    description: '사용자에게 보여 줄 여행 코스(경로)를 만든다. 코스·일정·동선을 추천할 때, 다른 도구로 장소를 확인한 뒤 방문 순서대로 3~6곳을 넣어 마지막에 한 번 호출한다. 각 장소는 실제 관광지 이름이어야 한다.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: '코스 제목 (예: 성산 일출 반나절 코스)' },
+        stops: {
+          type: 'array',
+          description: '방문 순서대로의 장소',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string', description: '관광지 이름' },
+              note: { type: 'string', description: '이 장소에서 할 일·팁 (한 문장)' },
+            },
+            required: ['name'],
+          },
+        },
+      },
+      required: ['title', 'stops'],
+    },
+  },
 ]
 
 // 좌표가 없으면 장소명으로 찾아서 채워 준다
@@ -116,6 +139,21 @@ export const runTool = {
     const c = known ? {} : await withCoords({ place_name, lat, lng })
     const w = await getWeather({ place: known ? place_name : '', lat: c.lat, lng: c.lng })
     return { place: w.place, advice: w.advice, sun: w.sun, forecast: w.forecast.slice(0, 6) }
+  },
+
+  // 장소 이름들을 실제 좌표로 확인하고, 구간 거리(km)를 계산해 코스로 묶는다
+  propose_route: async ({ title = '제주 코스', stops = [] }) => {
+    const resolved = await Promise.all(stops.slice(0, 8).map(async (s) => ({ s, p: await resolvePlace(s.name).catch(() => null) })))
+    const found = resolved.filter((r) => r.p).map(({ s, p }) => ({
+      name: p.title, note: s.note ?? '', id: p.id, addr: p.addr, lat: p.lat, lng: p.lng, image: p.image,
+    }))
+    const km = (a, b) => {
+      const d = Math.PI / 180
+      return Math.hypot((b.lng - a.lng) * d * Math.cos(((a.lat + b.lat) / 2) * d), (b.lat - a.lat) * d) * 6371
+    }
+    let total = 0
+    found.forEach((f, i) => { f.leg_km = i ? Math.round(km(found[i - 1], f) * 10) / 10 : 0; total += f.leg_km })
+    return { title, stops: found, not_found: resolved.filter((r) => !r.p).map((r) => r.s.name), total_km: Math.round(total * 10) / 10 }
   },
 
   get_crowd_forecast: async ({ place_name }) => {

@@ -7,7 +7,21 @@ export function monthOf(v) {
   return n >= 1 && n <= 12 ? n : 0
 }
 
-const SEASON = { 3: '봄', 4: '봄', 5: '봄', 6: '여름', 7: '여름', 8: '여름', 9: '가을', 10: '가을', 11: '가을', 12: '겨울', 1: '겨울', 2: '겨울' }
+// 월 표기는 "N월" 로 통일 (정보가 없으면 빈 문자열)
+export const monthLabel = (v) => (monthOf(v) ? `${monthOf(v)}월` : '')
+
+// 매번 다른 사진이 먼저 보이도록 섞고, 같은 제목이 몰리지 않게 제목당 최대 cap 장
+export function shuffleDiverse(list = [], cap = 2) {
+  const a = [...list]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]]
+  }
+  const seen = {}
+  return a.filter((p) => (seen[p.title] = (seen[p.title] ?? 0) + 1) <= cap)
+}
+
+const SEASON ={ 3: '봄', 4: '봄', 5: '봄', 6: '여름', 7: '여름', 8: '여름', 9: '가을', 10: '가을', 11: '가을', 12: '겨울', 1: '겨울', 2: '겨울' }
 export const seasonOf = (month) => SEASON[month] ?? ''
 
 export const distLabel = (m) => (m == null ? '' : m < 1000 ? `${m}m` : `${(m / 1000).toFixed(1)}km`)
@@ -23,7 +37,7 @@ export const TYPE_META = {
   14: { label: '문화시설', color: '#7b61ff', icon: 'bank' },
   15: { label: '축제·행사', color: '#ff4d8d', icon: 'balloon' },
   28: { label: '레포츠', color: '#1fa2ff', icon: 'bicycle' },
-  32: { label: '숙박', color: '#8d6e63', icon: 'house-heart' },
+  32: { label: '숙박', color: '#8d6e63', icon: 'house' },
   38: { label: '쇼핑', color: '#e5b700', icon: 'bag' },
   39: { label: '음식점', color: '#2fb36b', icon: 'cup-hot' },
 }

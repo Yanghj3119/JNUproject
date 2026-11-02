@@ -15,7 +15,7 @@ export default function CrowdChart({ name, addr }) {
       {days.length > 0 && (
         <>
           {data.quietest && (
-            <div className="small mb-2"><i className="bi bi-emoji-smile text-jp me-1" />가장 한적한 날: <strong>{fmt(data.quietest.date)}</strong></div>
+            <div className="small mb-2"><i className="bi bi-check2-circle text-jp me-1" />가장 한적한 날: <strong>{fmt(data.quietest.date)}</strong></div>
           )}
           <div className="jp-crowd" role="img" aria-label="향후 방문객 집중률 예측">
             {days.map((d) => {

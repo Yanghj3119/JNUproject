@@ -1,84 +1,95 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Col, Container, Row } from 'react-bootstrap'
 import { fetchPhotos } from '../api/client'
 import { useAsync } from '../lib/useAsync'
+import { shuffleDiverse } from '../lib/format'
 import PhotoCard from '../components/PhotoCard'
 import WeatherBadge from '../components/WeatherBadge'
 import Status from '../components/Status'
 
-const THEMES = ['오름', '바다', '폭포', '해변', '유채꽃', '일출', '한라산', '올레길', '야경']
+const PROMPTS = [
+  '성산일출봉 근처에서 반나절 코스 만들어줘',
+  '비 오는 날 서귀포에서 갈 만한 곳은?',
+  '휠체어로 편하게 갈 수 있는 명소 추천해줘',
+  '사람 적은 날 가기 좋은 오름 알려줘',
+  '유채꽃 사진 찍힌 곳은 언제 가면 좋아?',
+]
 
-const FEATURES = [
-  { icon: 'images', title: '사진으로 먼저 만나요', text: '가고 싶은 곳을 사진으로 둘러보고 마음에 드는 곳을 담아 두세요.' },
-  { icon: 'calendar-heart', title: '언제 찍은 곳인지', text: '촬영지와 촬영 시기로 가기 좋은 계절을 알려 드려요.' },
-  { icon: 'signpost-split', title: '근처에 뭐가 있지?', text: '그 주변 명소·맛집과 함께 가는 곳까지 한 번에.' },
-  { icon: 'cloud-sun', title: '날씨와 무장애 정보', text: '오늘 날씨, 비 오면 실내 대안, 휠체어·유모차 접근성까지.' },
+// AI 가이드가 실제로 호출하는 도구 = 공공데이터 API
+const TOOLS = [
+  { icon: 'images', name: '사진 검색·촬영지', src: '한국관광공사 관광사진 · 공모전 수상작' },
+  { icon: 'signpost-split', name: '주변 명소·연관 관광지', src: '한국관광공사 국문 관광정보 · 연관 관광지' },
+  { icon: 'cloud-sun', name: '날씨·일출·일몰', src: '기상청 단기예보 · 한국천문연구원' },
+  { icon: 'people', name: '혼잡도 예측', src: '한국관광공사 관광지 집중률' },
+  { icon: 'universal-access', name: '무장애 정보', src: '한국관광공사 무장애 여행' },
+  { icon: 'signpost', name: '코스·경로 만들기', src: '장소 좌표와 구간 거리 계산' },
 ]
 
 export default function Home() {
   const nav = useNavigate()
   const [q, setQ] = useState('')
-  const photos = useAsync(() => fetchPhotos('', 8), [])
+  const photos = useAsync(() => fetchPhotos('', 40), [])
+  const gallery = useMemo(() => shuffleDiverse(photos.data ?? [], 1).slice(0, 8), [photos.data]) // 접속할 때마다 다른 사진
 
-  const go = (e) => { e.preventDefault(); nav(`/explore?q=${encodeURIComponent(q.trim())}`) }
+  const ask = (text) => nav(`/agent?q=${encodeURIComponent(text)}`)
+  const submit = (e) => { e.preventDefault(); if (q.trim()) ask(q.trim()) }
 
   return (
     <>
       <section className="jp-hero">
         <Container>
-          <Row className="align-items-center g-4">
-            <Col lg={8}>
-              <span className="badge rounded-pill text-bg-light mb-3"><i className="bi bi-camera me-1" />관광객을 위한 사진 명소 갤러리</span>
-              <h1>사진으로 먼저 만나는<br />제주 여행 🍊</h1>
-              <p className="lead mt-3 mb-4">
-                여행 전에 사진으로 둘러보고, 촬영지·계절·주변 명소·날씨·접근성까지 한 번에 확인하세요.
-              </p>
-              <form className="jp-search" onSubmit={go}>
-                <input className="form-control" placeholder="어떤 제주가 보고 싶으세요? (예: 성산일출봉, 오름)" value={q} onChange={(e) => setQ(e.target.value)} />
-                <button className="btn btn-primary px-4" type="submit"><i className="bi bi-search me-1" />검색</button>
-              </form>
-              <div className="jp-themes">
-                {THEMES.map((t) => <Link key={t} className="jp-theme" to={`/explore?q=${encodeURIComponent(t)}`}>#{t}</Link>)}
-              </div>
-            </Col>
-            <Col lg={4}>
-              <div className="d-flex flex-lg-column gap-2 flex-wrap">
-                <WeatherBadge place="제주시" />
-                <WeatherBadge place="서귀포시" />
-                <Link to="/map" className="btn btn-light rounded-pill fw-semibold mt-lg-2"><i className="bi bi-globe-asia-australia me-1" />3D 제주 지도 열기</Link>
-              </div>
-            </Col>
-          </Row>
+          <div className="jp-eyebrow mb-3">AI 제주 여행 가이드</div>
+          <h1>제주 여행,<br />물어보면 코스가 됩니다.</h1>
+          <p className="lead mt-3 mb-4">
+            사진·날씨·혼잡도·주변 명소·접근성을 AI가 공공데이터로 직접 확인하고, 방문 순서까지 정리해 드려요.
+          </p>
+
+          <form className="jp-ask-box" onSubmit={submit}>
+            <input className="form-control" placeholder="예) 가족과 2박 3일, 비 와도 괜찮은 코스" value={q}
+              onChange={(e) => setQ(e.target.value)} aria-label="AI 가이드에게 질문" />
+            <button className="btn btn-primary" type="submit"><i className="bi bi-stars me-1" />물어보기</button>
+          </form>
+
+          <div className="jp-prompts">
+            {PROMPTS.map((p) => <button key={p} type="button" className="jp-prompt" onClick={() => ask(p)}>{p}</button>)}
+          </div>
+
+          <div className="jp-hero-weather">
+            <WeatherBadge place="제주시" />
+            <WeatherBadge place="서귀포시" />
+          </div>
         </Container>
-        <svg className="jp-wave" viewBox="0 0 1440 70" preserveAspectRatio="none" aria-hidden="true">
-          <path fill="#fffaf2" d="M0 40c120 25 240 25 360 5s240-35 360-25 240 40 360 40 240-25 360-15v25H0z" />
-        </svg>
       </section>
 
-      <Container className="py-4">
-        <div className="d-flex justify-content-between align-items-end mb-3">
-          <h2 className="h4 jp-section-title mb-0">지금 만나는 제주 풍경</h2>
-          <Link to="/explore" className="text-decoration-none">더 보기 <i className="bi bi-arrow-right" /></Link>
-        </div>
-        <Status loading={photos.loading} error={photos.error} empty={!photos.loading && !photos.error && !photos.data?.length} />
-        <Row xs={1} sm={2} lg={4} className="g-3">
-          {photos.data?.map((p) => <Col key={p.id || p.image}><PhotoCard photo={p} /></Col>)}
-        </Row>
-      </Container>
-
-      <Container className="py-4">
-        <h2 className="h4 jp-section-title mb-3">제주픽으로 이렇게 여행해요</h2>
-        <Row xs={1} sm={2} lg={4} className="g-3">
-          {FEATURES.map((f) => (
-            <Col key={f.title}>
-              <div className="jp-feature">
-                <i className={`bi bi-${f.icon}`} />
-                <h3 className="h6 fw-bold mt-2">{f.title}</h3>
-                <p className="small text-muted mb-0">{f.text}</p>
+      <Container className="py-5">
+        <div className="jp-eyebrow mb-1">How it works</div>
+        <h2 className="h4 jp-section-title mb-1">AI가 직접 확인하고 답해요</h2>
+        <p className="text-muted mb-4">답변마다 AI가 어떤 데이터를 호출했는지 화면에 그대로 보여 드려요.</p>
+        <Row xs={1} sm={2} lg={3} className="g-3">
+          {TOOLS.map((t) => (
+            <Col key={t.name}>
+              <div className="jp-tool">
+                <i className={`bi bi-${t.icon}`} />
+                <div className="fw-semibold mt-2">{t.name}</div>
+                <div className="src">{t.src}</div>
               </div>
             </Col>
           ))}
+        </Row>
+      </Container>
+
+      <Container className="pb-4">
+        <div className="d-flex justify-content-between align-items-end mb-3">
+          <div>
+            <div className="jp-eyebrow mb-1">Gallery</div>
+            <h2 className="h4 jp-section-title mb-0">오늘의 제주 풍경</h2>
+          </div>
+          <Link to="/explore" className="text-decoration-none small">사진 더 보기 <i className="bi bi-arrow-right" /></Link>
+        </div>
+        <Status loading={photos.loading} error={photos.error} empty={!photos.loading && !photos.error && !gallery.length} />
+        <Row xs={1} sm={2} lg={4} className="g-3">
+          {gallery.map((p) => <Col key={p.id || p.image}><PhotoCard photo={p} /></Col>)}
         </Row>
       </Container>
     </>

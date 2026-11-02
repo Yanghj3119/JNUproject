@@ -3,7 +3,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { Col, Container, Row } from 'react-bootstrap'
 import { fetchAccess, fetchNearby, fetchPhotoInfo, fetchRelated } from '../api/client'
 import { useAsync } from '../lib/useAsync'
-import { monthOf, seasonOf } from '../lib/format'
+import { monthOf } from '../lib/format'
 import { useAppStore } from '../store/useAppStore'
 import PlaceCard from '../components/PlaceCard'
 import Status from '../components/Status'
@@ -68,9 +68,8 @@ export default function PhotoDetail() {
           <div className="jp-panel mb-3">
             <div className="mb-2"><i className="bi bi-geo-alt text-jp me-2" /><strong>촬영지</strong> {photo?.location || place?.title || '정보 없음'}</div>
             <div className="mb-2">
-              <i className="bi bi-calendar-heart text-jp me-2" /><strong>촬영 시기</strong>{' '}
-              {month ? `${month}월 (${seasonOf(month)})` : '정보 없음'}
-              {month > 0 && <span className="small text-muted ms-2">이 시기에 가면 사진 속 풍경을 만날 수 있어요</span>}
+              <i className="bi bi-calendar3 text-jp me-2" /><strong>촬영 시기</strong>{' '}
+              {month ? `${month}월` : '정보 없음'}
             </div>
             {photo?.photographer && <div className="small text-muted"><i className="bi bi-person me-2" />촬영 {photo.photographer}</div>}
           </div>
@@ -87,6 +86,9 @@ export default function PhotoDetail() {
                     <i className="bi bi-sign-turn-right me-1" />길찾기
                   </a>
                   <Link className="btn btn-sm btn-outline-sea" to="/map"><i className="bi bi-globe-asia-australia me-1" />3D 지도</Link>
+                  <Link className="btn btn-sm btn-primary" to={`/agent?q=${encodeURIComponent(`${place.title} 근처 반나절 코스를 만들어줘`)}`}>
+                    <i className="bi bi-stars me-1" />AI 코스 만들기
+                  </Link>
                 </div>
               </div>
               <WeatherBadge lat={place.lat} lng={place.lng} variant="card" />
