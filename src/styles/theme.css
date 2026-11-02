@@ -200,6 +200,11 @@ h1, h2, h3, h4, h5 { letter-spacing: -0.025em; }
 .jp-step { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.76rem; background: #fff; border: 1px solid var(--jp-line); color: var(--jp-ink-2); border-radius: 6px; padding: 0.1rem 0.55rem; margin: 0.15rem 0.25rem 0 0; }
 .jp-step .bi { color: var(--jp-sea); }
 .jp-step.err { color: #b3261e; border-color: #e6b3b0; }
+button.jp-step { cursor: pointer; font-family: inherit; }
+button.jp-step:hover, button.jp-step.on { border-color: var(--jp-sea); background: #eef5ff; }
+.jp-step-detail { margin-top: 0.5rem; padding: 0.6rem 0.75rem; background: #fff; border: 1px solid var(--jp-line); border-radius: 8px; max-height: 260px; overflow-y: auto; font-size: 0.82rem; }
+.jp-step-row { padding: 0.2rem 0; border-top: 1px solid var(--jp-line); font-size: 0.8rem; word-break: keep-all; overflow-wrap: anywhere; }
+.jp-step-row:first-of-type { border-top: 0; }
 .jp-chat-form { border-top: 1px solid var(--jp-line); padding: 0.8rem; display: flex; gap: 0.5rem; }
 .jp-empty-chat { margin: auto; max-width: 520px; text-align: center; }
 .jp-empty-chat .jp-prompt { border-color: var(--jp-line); color: var(--jp-ink-2); background: #fff; text-align: left; border-radius: 10px; }

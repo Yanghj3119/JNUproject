@@ -2,6 +2,19 @@ import { create } from 'zustand'
 import { supabase } from '../lib/supabase'
 import { askAgent } from '../api/client'
 
+// AI 가 추천한 코스를 최근 10개까지 이 브라우저(localStorage)에 기록해 둔다 — 새 대화·새로고침 뒤에도 다시 볼 수 있다
+const ROUTE_HISTORY_MAX = 10
+const ROUTE_HISTORY_KEY = 'jp-route-history'
+function loadRouteHistory() {
+  try {
+    const list = JSON.parse(localStorage.getItem(ROUTE_HISTORY_KEY) || '[]')
+    return Array.isArray(list) ? list.filter((e) => e?.route?.stops?.length).slice(0, ROUTE_HISTORY_MAX) : []
+  } catch { return [] }
+}
+function saveRouteHistory(list) {
+  try { localStorage.setItem(ROUTE_HISTORY_KEY, JSON.stringify(list)) } catch { /* 저장소를 못 쓰는 환경 */ }
+}
+
 // ── 앱 전체가 함께 쓰는 상태(store) ──────────────────────
 // 사용법:  const user = useAppStore((s) => s.user)
 let authStarted = false
@@ -108,14 +121,22 @@ export const useAppStore = create((set, get) => ({
   // ⑤ AI 가이드 대화 — 페이지를 옮겨도 대화가 남도록 store 에 둠
   messages: [], // { role: 'user' | 'assistant', text, steps, route }
   chatLoading: false,
+  routeHistory: loadRouteHistory(), // 최근에 AI가 추천한 코스 (최신이 앞, 이 브라우저에 저장)
   sendMessage: async (text) => {
     const history = get().messages.map((m) => ({ role: m.role, content: m.text }))
     set({ messages: [...get().messages, { role: 'user', text }], chatLoading: true })
     try {
       const { answer, steps, route } = await askAgent(text, history)
       set({ messages: [...get().messages, { role: 'assistant', text: answer, steps, route }] })
+      if (route?.stops?.length) {
+        const entry = { id: `${Date.now()}`, at: new Date().toISOString(), question: text, summary: answer, route: { ...route, stops: route.stops.map(({ image: _i, ...s }) => s) } }
+        const list = [entry, ...get().routeHistory].slice(0, ROUTE_HISTORY_MAX)
+        set({ routeHistory: list })
+        saveRouteHistory(list)
+      }
       if (supabase && get().user) { // 로그인했으면 대화 기록 저장 (실패해도 화면에는 영향 없음)
-        supabase.from('chat_logs').insert({ question: text, answer, tools: steps }).then(() => {})
+        const tools = (steps ?? []).map(({ result: _r, ...s }) => s) // 도구 결과 미리보기는 저장하지 않는다
+        supabase.from('chat_logs').insert({ question: text, answer, tools }).then(() => {})
       }
     } catch (e) {
       get().toast(e.message, 'danger')

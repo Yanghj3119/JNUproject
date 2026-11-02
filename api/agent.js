@@ -18,6 +18,25 @@ const SYSTEM = `너는 제주를 처음 여행하는 관광객을 돕는 여행 
   · 버스 노선 번호, 시각, 기온 같은 숫자는 그대로 쓴다.
 - 답은 정중하고 간결하게, 6문장 이내로. 이모지는 쓰지 않는다.`
 
+// 화면에서 "AI가 호출한 도구"를 눌렀을 때 보여 줄 결과 미리보기 — 길이를 줄여서(최대 6건, 긴 글 자르기, 이미지 제외) 응답이 커지지 않게 한다
+const SKIP = new Set(['image', 'images', 'thumbnail'])
+function brief(v, depth = 0, maxItems = 6) {
+  if (typeof v === 'string') return v.length > 140 ? `${v.slice(0, 140)}…` : v
+  if (v == null || typeof v !== 'object') return v
+  if (Array.isArray(v)) {
+    const out = v.slice(0, maxItems).map((x) => brief(x, depth + 1, maxItems))
+    if (v.length > maxItems) out.push(`… 외 ${v.length - maxItems}건`)
+    return out
+  }
+  if (depth >= 3) return '…'
+  return Object.fromEntries(Object.entries(v).filter(([k]) => !SKIP.has(k)).map(([k, x]) => [k, brief(x, depth + 1, maxItems)]))
+}
+const preview = (v) => {
+  let b = brief(v)
+  if (JSON.stringify(b).length > 3500) b = brief(v, 0, 3)
+  return b
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
   if (!process.env.ANTHROPIC_API_KEY) return res.status(500).json({ error: 'ANTHROPIC_API_KEY 가 없어요 (.env.local)' })
@@ -56,6 +75,7 @@ export default async function handler(req, res) {
           tool: block.name, args: block.input,
           count: Array.isArray(result) ? result.length : result?.stops?.length,
           error: result?.error,
+          result: preview(forModel),
         })
         results.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(forModel) })
       }
