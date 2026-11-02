@@ -22,8 +22,6 @@ const TOOL_LABEL = {
   search_jeju_places: ['geo-alt', '오름·박물관·기념품'],
   search_lodging: ['building', '숙박 정보'],
   get_hallasan_trails: ['tree', '한라산 둘레길'],
-  get_traffic_accident_spots: ['exclamation-triangle', '사고 다발지역'],
-  search_bus_stops: ['bus-front', '버스 정류소'],
 }
 
 const SUGGESTIONS = [

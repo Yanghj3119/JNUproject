@@ -42,7 +42,9 @@ export default function RootLayout() {
               ))}
               {authReady && (user ? (
                 <div className="d-flex align-items-center gap-2 ms-md-3 mt-2 mt-md-0">
-                  <span className="small text-muted text-truncate" style={{ maxWidth: 140 }}><i className="bi bi-person-circle me-1" />{name}</span>
+                  <NavLink to="/my" className={({ isActive }) => `jp-account ${isActive ? 'on' : ''}`} title="내 보관함 (위시리스트·저장한 경로)">
+                    <i className="bi bi-person-circle me-1" />{name}
+                  </NavLink>
                   <button className="btn btn-sm btn-outline-sea" onClick={signOut}>로그아웃</button>
                 </div>
               ) : (

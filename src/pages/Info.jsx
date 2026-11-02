@@ -6,15 +6,15 @@ import { useAsync } from '../lib/useAsync'
 import { findAddress, findPlace, mapSearchLink, mapToLink, mapWalkLink } from '../lib/kakaoGeo'
 import KakaoMap from '../components/KakaoMap'
 import PageBanner from '../components/PageBanner'
-import TransitTab from '../components/TransitTab'
+import { BusTransit, AirportTab } from '../components/TransitTab'
 import Status from '../components/Status'
 
-// 제주데이터허브 데이터: 한라산 둘레길 · 교통(사고 다발지역·버스 정류소) · 숙박
+// 여행 정보: 대중교통(버스) · 공항 · 한라산 둘레길 · 숙박 (둘레길·숙박은 제주데이터허브, 버스·공항은 공공데이터포털)
 // 좌표가 없는 데이터(둘레길·숙박)는 카카오 장소·주소 검색으로 위치를 찾아 지도에 표시한다.
 const TABS = [
+  { id: 'bus', label: '대중교통', icon: 'bus-front' },
+  { id: 'airport', label: '공항', icon: 'airplane' },
   { id: 'trail', label: '한라산 둘레길', icon: 'tree' },
-  { id: 'transit', label: '대중교통·공항', icon: 'bus-front' },
-  { id: 'traffic', label: '교통사고·정류소', icon: 'exclamation-triangle' },
   { id: 'lodging', label: '숙박', icon: 'building' },
 ]
 
@@ -96,91 +96,6 @@ function TrailTab() {
   )
 }
 
-// ── 교통·안전: 사고 다발지역 · 버스 정류소 ─────────────────────
-function TrafficTab() {
-  const [mode, setMode] = useState('accident') // 'accident' | 'busstop'
-  const [sigungu, setSigungu] = useState('')
-  const [name, setName] = useState('제주국제공항')
-  const [q, setQ] = useState('제주국제공항') // 처음부터 결과가 보이도록 기본 검색어
-  const [selId, setSelId] = useState(null)
-
-  const accident = useAsync(() => (mode === 'accident' ? fetchHub('accident', { sigungu }) : null), [mode, sigungu])
-  const stops = useAsync(() => (mode === 'busstop' && q ? fetchHub('busstop', { name: q }) : null), [mode, q])
-  const cur = mode === 'accident' ? accident : stops
-
-  // 행마다 고유 id 를 붙여 표와 지도 핀을 서로 연결
-  const items = useMemo(() => (cur.data ?? []).map((p, i) => ({ ...p, _id: p.id ?? `${mode}-${i}`, _title: p.place ?? p.name })), [cur.data, mode])
-  const spots = useMemo(() => items.filter((p) => p.lat > 33 && p.lng > 126).map((p) => ({ id: p._id, title: p._title, lat: p.lat, lng: p.lng, type: mode })), [items, mode])
-  const sel = items.find((p) => p._id === selId)
-
-  const reset = (fn) => (v) => { setSelId(null); fn(v) }
-
-  return (
-    <>
-      <div className="d-flex flex-wrap gap-2 mb-3 align-items-center">
-        <div className="btn-group">
-          <button type="button" className={`btn btn-sm ${mode === 'accident' ? 'btn-primary' : 'btn-outline-sea'}`} onClick={() => reset(setMode)('accident')}>교통사고 다발지역</button>
-          <button type="button" className={`btn btn-sm ${mode === 'busstop' ? 'btn-primary' : 'btn-outline-sea'}`} onClick={() => reset(setMode)('busstop')}>버스 정류소</button>
-        </div>
-        {mode === 'accident'
-          ? <Select value={sigungu} onChange={reset(setSigungu)} options={['제주시', '서귀포시']} all="제주 전체" label="시군구" />
-          : (
-            <form className="d-flex gap-2" onSubmit={(e) => { e.preventDefault(); reset(setQ)(name.trim()) }}>
-              <input className="form-control" placeholder="정류소 이름 (예: 제주국제공항, 성산)" value={name} onChange={(e) => setName(e.target.value)} style={{ maxWidth: 260 }} />
-              <button className="btn btn-primary" type="submit" aria-label="검색"><i className="bi bi-search" /></button>
-            </form>
-          )}
-      </div>
-
-      {mode === 'accident' && <p className="small text-muted">렌터카로 이동한다면 아래 구간에서는 특히 서행하세요. 발생 건수가 많은 순서예요. 행을 누르면 지도에 표시돼요.</p>}
-      {mode === 'busstop' && <p className="small text-muted">도착 시각은 제공되지 않고 위치·방향만 확인할 수 있어요. 행을 누르면 지도에 표시돼요.</p>}
-
-      <Status loading={cur.loading} error={cur.error} empty={!cur.loading && !cur.error && (mode === 'accident' || q) && !items.length} emptyText="결과가 없어요. 이름 일부만 입력해 보세요 (예: 공항)" />
-      {items.length > 0 && (
-        <Row className="g-3">
-          <Col lg={7}>
-            <div className="table-responsive jp-panel p-0" style={{ maxHeight: 460, overflowY: 'auto' }}>
-              <table className="table table-hover align-middle mb-0 jp-clickable">
-                {mode === 'accident' ? (
-                  <>
-                    <thead><tr><th>지점</th><th className="text-end">발생</th><th className="text-end">사상자</th><th className="text-end">사망</th></tr></thead>
-                    <tbody>{items.map((a) => (
-                      <tr key={a._id} className={a._id === selId ? 'table-active' : ''} onClick={() => setSelId(a._id)}>
-                        <td><div className="fw-semibold">{a.place}</div><div className="small text-muted">{a.area}</div></td><td className="text-end">{a.count}</td><td className="text-end">{a.casualties}</td><td className="text-end">{a.deaths}</td>
-                      </tr>
-                    ))}</tbody>
-                  </>
-                ) : (
-                  <>
-                    <thead><tr><th>정류소</th><th>방향</th><th>주소</th></tr></thead>
-                    <tbody>{items.map((s) => (
-                      <tr key={s._id} className={s._id === selId ? 'table-active' : ''} onClick={() => setSelId(s._id)}>
-                        <td className="fw-semibold">{s.name}<div className="small text-muted">ID {s.id}</div></td><td>{s.direction}</td><td className="small">{s.addr}</td>
-                      </tr>
-                    ))}</tbody>
-                  </>
-                )}
-              </table>
-            </div>
-          </Col>
-          <Col lg={5}>
-            <div className="jp-route-map rounded-3 overflow-hidden border" style={{ height: 380 }}>
-              <KakaoMap spots={spots} selectedId={selId} onSelect={(s) => setSelId(s?.id ?? null)} />
-            </div>
-            {sel && (
-              <div className="jp-panel mt-2 py-2">
-                <div className="fw-semibold">{sel._title}</div>
-                <div className="small text-muted mb-2">{mode === 'accident' ? `${sel.area} · 발생 ${sel.count}건` : sel.addr}</div>
-                <a className="btn btn-sm btn-outline-sea" target="_blank" rel="noreferrer" href={mapToLink(sel._title, sel.lat, sel.lng)}><i className="bi bi-signpost me-1" />카카오맵 길찾기</a>
-              </div>
-            )}
-          </Col>
-        </Row>
-      )}
-    </>
-  )
-}
-
 // ── 숙박: 주소로 위치를 찾아 지도에 표시 ───────────────────────
 function LodgingMap({ item }) {
   const { data, loading } = useAsync(async () => (await findAddress(item.addr)) ?? (await findPlace(item.name)), [item.name, item.addr])
@@ -248,12 +163,12 @@ function LodgingTab() {
 }
 
 export default function Info() {
-  const [tab, setTab] = useState('transit')
+  const [tab, setTab] = useState('bus')
   return (
     <>
       <PageBanner
         img="/images/jeju-stonewall.jpg" pos="50% 70%" eyebrow="여행 정보" title="떠나기 전에 확인하세요"
-        sub="제주데이터허브 공공데이터로 한라산 둘레길, 교통 안전, 숙박을 확인하고 지도에서 위치를 볼 수 있어요."
+        sub="버스 도착·위치, 공항 운항 스케줄, 한라산 둘레길, 숙박을 공공데이터로 확인하고 지도에서 위치를 볼 수 있어요."
       />
       <Container className="pt-4">
         <div className="jp-tabs" style={{ overflowX: 'auto' }}>
@@ -265,8 +180,8 @@ export default function Info() {
         </div>
 
         {tab === 'trail' && <TrailTab />}
-        {tab === 'transit' && <TransitTab />}
-        {tab === 'traffic' && <TrafficTab />}
+        {tab === 'bus' && <BusTransit />}
+        {tab === 'airport' && <AirportTab />}
         {tab === 'lodging' && <LodgingTab />}
       </Container>
     </>

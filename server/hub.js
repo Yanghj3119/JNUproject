@@ -11,10 +11,7 @@ const API = {
   museum: 'at2ta1D1aaa811bata88Dt1D22b1t1bt',      // 박물관 및 미술관 위치 정보 (placeName)
   souvenir: '11D8at1abba0ttaDa8t8atta01188t81',    // 기념품 가게 위치 정보     (placeName)
   lodging: 'ttbttaD3aaa3ta8bbtDtaDD18t37aD17',     // 관광 숙박업 정보         (companyName, bizSmallType, openStatus)
-  busStop: 'DD11ab6a6t11D16baaa1a2tD26ata161',     // 버스 정류소 기본 정보     (stationName)
-  busRoute: 'aaatD6D1atta1611at1t6a1b6at1b11a',    // 버스 노선 기본 정보       (startStationId)
   trail: '888tDaaDaat91181b7Db79811181tDaa',       // 한라산 둘레길 코스별 정보 (courseName, startPoint, endPoint)
-  accident: '36333aD6tba8aa1D6D1aaab8D1aa6ba8',    // 교통사고 다발지역 정보    (sidoSigungu)
 }
 
 export function hubKey() {
@@ -122,33 +119,5 @@ export async function getTrails({ course = '', limit = 30 } = {}) {
   return clip(rows, limit).map((t) => ({
     course: String(t.courseName ?? '').trim(), km: num(String(t.distance ?? '').replace(/[^\d.]/g, '')) || undefined,
     start: String(t.startPoint ?? '').trim(), end: String(t.endPoint ?? '').trim(),
-  }))
-}
-
-export async function getAccidentSpots({ sigungu = '', limit = 20 } = {}) {
-  const rows = await callHub('accident', { sidoSigungu: sigungu })
-  return rows
-    .map((a) => ({
-      area: String(a.sidoSigungu ?? '').replace(/\d+$/, '').replace('제주특별자치도', '제주'), place: a.occurrencePlace, count: num(a.occurrenceCount) || 0,
-      casualties: num(a.deathInjuryCount) || 0, deaths: num(a.deathCount) || 0,
-      lat: num(a.latitude), lng: num(a.longitude),
-    }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, limit)
-}
-
-export async function searchBusStops({ name = '', limit = 30 } = {}) {
-  const rows = await callHub('busStop', { stationName: name })
-  return clip(rows, limit).map((s) => ({
-    id: s.stationId, name: s.stationName, addr: s.stationAddress, direction: s.direction,
-    lat: num(s.latitude), lng: num(s.longitude),
-  }))
-}
-
-export async function getBusRoutes({ startStationId = '', limit = 30 } = {}) {
-  const rows = await callHub('busRoute', { startStationId })
-  return clip(rows, limit).map((r) => ({
-    id: r.routeId, name: r.routeName, number: r.routeNumber, from: r.startStationName, to: r.endStationName,
-    stops: num(r.stationCount) || undefined, km: num(r.routeLength) || undefined,
   }))
 }

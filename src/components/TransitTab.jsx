@@ -176,12 +176,12 @@ function Flights() {
 }
 
 const SUBS = [
-  { id: 'arrivals', label: '버스 도착', icon: 'bus-front' },
-  { id: 'positions', label: '버스 위치 지도', icon: 'geo-alt' },
-  { id: 'flights', label: '공항 스케줄', icon: 'airplane' },
+  { id: 'arrivals', label: '정류소·도착 정보', icon: 'bus-front' },
+  { id: 'positions', label: '노선 버스 위치', icon: 'geo-alt' },
 ]
 
-export default function TransitTab() {
+// 대중교통 탭: 제주는 버스 중심이라 정류소 검색·도착 정보·노선 버스 위치를 한 곳에 둔다
+export function BusTransit() {
   const [sub, setSub] = useState('arrivals')
   return (
     <>
@@ -194,7 +194,11 @@ export default function TransitTab() {
       </div>
       {sub === 'arrivals' && <BusArrivals />}
       {sub === 'positions' && <BusPositions />}
-      {sub === 'flights' && <Flights />}
     </>
   )
+}
+
+// 공항 탭: 제주공항 국내선 운항 스케줄
+export function AirportTab() {
+  return <Flights />
 }

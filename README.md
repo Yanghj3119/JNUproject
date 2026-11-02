@@ -40,8 +40,8 @@ Supabase 는 `supabase/schema.sql` 을 SQL Editor 에서 실행해 테이블을 
 |---|---|---|
 | 오름·박물관/미술관·기념품 위치 | 오름 위치 정보 외 2종 | 지도 페이지 핀 + AI 도구 `search_jeju_places` |
 | 한라산 둘레길 | 한라산 둘레길 코스별 정보 | 여행 정보 탭 + `get_hallasan_trails` |
-| 교통사고 다발지역 | 교통사고 다발지역 정보 | 여행 정보 탭 + `get_traffic_accident_spots` |
-| 버스 정류소 | 버스 정류소 기본 정보 | 여행 정보 탭 + `search_bus_stops` |
+| 버스 도착·위치·정류소 | 국토교통부 TAGO (제주 도시코드 39) | 여행 정보 > 대중교통 + `get_bus_arrivals` |
+| 공항 운항 스케줄 | 한국공항공사 국내선 운항 스케줄 | 여행 정보 > 공항 + `get_flight_schedule` |
 | 숙박 | 관광 숙박업 정보 | 여행 정보 탭 + `search_lodging` |
 
 `/api/photos?debug=1` 로 사진 API 원본 응답(필드명·촬영월 형식)을 확인할 수 있습니다.

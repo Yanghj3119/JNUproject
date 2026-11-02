@@ -7,7 +7,7 @@ import { getWeather } from './weather.js'
 import { checkAccessibility } from './access.js'
 import { getRelated } from './related.js'
 import { getCrowd } from './crowd.js'
-import { listHubPlaces, PLACE_KIND_NAMES, searchLodging, getTrails, getAccidentSpots, searchBusStops } from './hub.js'
+import { listHubPlaces, PLACE_KIND_NAMES, searchLodging, getTrails } from './hub.js'
 
 // ① 도구 설명서: Claude 는 이 설명만 보고 "어떤 도구를 언제 쓸지" 결정한다
 export const tools = [
@@ -114,16 +114,6 @@ export const tools = [
     input_schema: { type: 'object', properties: { course: { type: 'string', description: '코스명 (선택)' } } },
   },
   {
-    name: 'get_traffic_accident_spots',
-    description: '제주 교통사고 다발지역(발생 건수 순)을 조회한다. 렌터카·운전 여행자에게 주의 구간을 알려 줄 때 쓴다.',
-    input_schema: { type: 'object', properties: { sigungu: { type: 'string', enum: ['제주시', '서귀포시'] } } },
-  },
-  {
-    name: 'search_bus_stops',
-    description: '제주 버스 정류소를 이름으로 검색한다 (정류소 ID·주소·방향·좌표). 도착 시각은 제공하지 않는다.',
-    input_schema: { type: 'object', properties: { name: { type: 'string', description: '정류소 이름 일부' } }, required: ['name'] },
-  },
-  {
     name: 'get_bus_arrivals',
     description: '제주 버스 정류소의 실시간 도착 정보를 조회한다 (노선 번호, 몇 분 뒤 도착, 몇 정거장 전, 저상버스 여부). 정류소 이름 일부로 찾는다. 대중교통으로 이동하는 방법을 물을 때 쓴다.',
     input_schema: {
@@ -226,10 +216,6 @@ export const runTool = {
   },
   search_lodging: async ({ name, type }) => (await searchLodging({ name, type, limit: 10 })),
   get_hallasan_trails: async ({ course }) => getTrails({ course, limit: 12 }),
-  get_traffic_accident_spots: async ({ sigungu }) =>
-    (await getAccidentSpots({ sigungu, limit: 8 })).map(({ lat: _la, lng: _ln, ...a }) => a),
-  search_bus_stops: async ({ name }) => (await searchBusStops({ name, limit: 8 })).map(({ lat: _la, lng: _ln, ...s }) => s),
-
   get_bus_arrivals: async ({ stop_name }) => {
     const stops = (await searchStops({ name: stop_name, limit: 6 })).slice(0, 4)
     if (!stops.length) return { note: `"${stop_name}" 정류소를 찾지 못했어요` }

@@ -290,3 +290,8 @@ button.jp-pick.on { border-color: var(--jp-ink); box-shadow: inset 0 0 0 1px var
 .jp-listbtn:hover { background: var(--jp-bg); }
 .jp-listbtn.on { background: var(--jp-ink); color: #fff; }
 .jp-listbtn.on .text-jp { color: #7fd0d8 !important; }
+
+/* 헤더 계정 이름: 누르면 내 보관함 */
+.jp-account { display: inline-flex; align-items: center; max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.9rem; font-weight: 600; color: var(--jp-ink-2); text-decoration: none; padding: 0.3rem 0.65rem; border-radius: 8px; border: 1px solid transparent; }
+.jp-account:hover { background: rgba(15, 26, 32, 0.06); color: var(--jp-ink); }
+.jp-account.on { color: var(--jp-ink); border-color: var(--jp-line); background: #fff; }

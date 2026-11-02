@@ -23,7 +23,7 @@ export function photoLink(p) {
   return `/photo/${encodeURIComponent(p.id || 'x')}?${q}`
 }
 
-// 장소 분류별 색·아이콘. 핀 색은 푸른 계열로 통일 (사고 다발지역만 경고색)
+// 장소 분류별 색·아이콘. 핀 색은 푸른 계열로 통일
 export const TYPE_META = {
   12: { label: '관광지', color: '#2563eb', icon: 'camera' },
   14: { label: '문화시설', color: '#4f46e5', icon: 'bank' },
@@ -36,7 +36,6 @@ export const TYPE_META = {
   oreum: { label: '오름', color: '#1d4ed8', icon: 'triangle' },
   museum: { label: '박물관·미술관', color: '#6366f1', icon: 'bank2' },
   souvenir: { label: '기념품', color: '#38bdf8', icon: 'bag-heart' },
-  accident: { label: '사고 다발', color: '#d64545', icon: 'exclamation-triangle' },
   busstop: { label: '버스 정류소', color: '#1f7ae0', icon: 'bus-front' },
 }
 export const typeMeta = (t) => TYPE_META[t] ?? TYPE_META[Number(t)] ?? { label: '명소', color: '#2563eb', icon: 'geo-alt' }

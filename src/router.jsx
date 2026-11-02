@@ -21,7 +21,6 @@ export const NAV_ITEMS = [
   { to: '/spots', label: '포토 스팟', icon: 'camera' },
   { to: '/map', label: '지도', icon: 'map' },
   { to: '/info', label: '여행 정보', icon: 'info-circle' },
-  { to: '/my', label: '내 보관함', icon: 'bookmark' },
 ]
 
 export const router = createBrowserRouter([
