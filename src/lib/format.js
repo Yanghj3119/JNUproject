@@ -36,6 +36,8 @@ export const TYPE_META = {
   oreum: { label: '오름', color: '#1d4ed8', icon: 'triangle' },
   museum: { label: '박물관·미술관', color: '#6366f1', icon: 'bank2' },
   souvenir: { label: '기념품', color: '#38bdf8', icon: 'bag-heart' },
+  rentcar: { label: '렌터카', color: '#0369a1', icon: 'car-front' },
+  socar: { label: '쏘카존', color: '#0ea5e9', icon: 'ev-front' },
   busstop: { label: '버스 정류소', color: '#1f7ae0', icon: 'bus-front' },
 }
 export const typeMeta = (t) => TYPE_META[t] ?? TYPE_META[Number(t)] ?? { label: '명소', color: '#2563eb', icon: 'geo-alt' }

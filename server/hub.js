@@ -12,7 +12,9 @@ const API = {
   oreum: '1Dttb1tab8tD88Dtat11111at1t1atD8',       // 오름 위치 정보           (placeName)
   museum: 'at2ta1D1aaa811bata88Dt1D22b1t1bt',      // 박물관 및 미술관 위치 정보 (placeName)
   souvenir: '11D8at1abba0ttaDa8t8atta01188t81',    // 기념품 가게 위치 정보     (placeName)
-  lodging: 'ttbttaD3aaa3ta8bbtDtaDD18t37aD17',     // 관광 숙박업 정보         (companyName, bizSmallType, openStatus)
+  rentcar: '88D0ba0a01a08D081tt8aDba21aabt28',     // 렌터카 위치 정보          (placeName)
+  socar: 'tta9at0b01a0181t11bttttt9b0tt9tt',       // 쏘카존(카셰어링) 위치 정보 (placeName)
+  lodging: 'ttbttaD3aaa3ta8bbtDtaDD18t37aD17',    // 관광 숙박업 정보         (companyName, bizSmallType, openStatus)
   trail: '888tDaaDaat91181b7Db79811181tDaa',       // 한라산 둘레길 코스별 정보 (courseName, startPoint, endPoint)
 }
 
@@ -89,6 +91,8 @@ const PLACE_KINDS = {
   oreum: { label: '오름' },
   museum: { label: '박물관·미술관' },
   souvenir: { label: '기념품 가게' },
+  rentcar: { label: '렌터카' },
+  socar: { label: '쏘카존' },
 }
 export const PLACE_KIND_NAMES = Object.fromEntries(Object.entries(PLACE_KINDS).map(([k, v]) => [v.label, k]))
 

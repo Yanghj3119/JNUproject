@@ -9,12 +9,13 @@ import PageBanner from '../components/PageBanner'
 import { BusTransit, AirportTab, FerryTab } from '../components/TransitTab'
 import Status from '../components/Status'
 
-// 여행 정보: 대중교통(버스) · 공항 · 선박 · 한라산 둘레길 · 숙박 (둘레길·숙박은 제주데이터허브, 버스·공항은 공공데이터포털)
+// 여행 정보: 대중교통(버스) · 공항 · 선박 · 렌터카 · 한라산 둘레길 · 숙박 (둘레길·숙박은 제주데이터허브, 버스·공항은 공공데이터포털)
 // 좌표가 없는 데이터(둘레길·숙박)는 카카오 장소·주소 검색으로 위치를 찾아 지도에 표시한다.
 const TABS = [
   { id: 'bus', label: '대중교통', icon: 'bus-front' },
   { id: 'airport', label: '공항', icon: 'airplane' },
   { id: 'ferry', label: '선박', icon: 'water' },
+  { id: 'rent', label: '렌터카', icon: 'car-front' },
   { id: 'trail', label: '한라산 둘레길', icon: 'tree' },
   { id: 'lodging', label: '숙박', icon: 'building' },
 ]
@@ -97,6 +98,93 @@ function TrailTab() {
   )
 }
 
+// ── 렌터카·쏘카존 (제주데이터허브, 좌표 포함) ───────────────────
+const AIRPORT = { lat: 33.5113, lng: 126.493 }
+const kmBetween = (a, b) => {
+  const d = Math.PI / 180
+  return Math.hypot((b.lng - a.lng) * d * Math.cos(((a.lat + b.lat) / 2) * d), (b.lat - a.lat) * d) * 6371
+}
+const RENT_KINDS = [
+  { id: 'rentcar', label: '렌터카 업체', icon: 'car-front' },
+  { id: 'socar', label: '쏘카존 (카셰어링)', icon: 'ev-front' },
+]
+
+function RentTab() {
+  const [kind, setKind] = useState('rentcar')
+  const [area, setArea] = useState('')
+  const [name, setName] = useState('')
+  const [sort, setSort] = useState('airport')
+  const [selId, setSelId] = useState(null)
+  const { data, loading, error } = useAsync(() => fetchHub(kind), [kind])
+
+  const list = useMemo(() => {
+    const q = name.trim()
+    return (data ?? [])
+      .filter((p) => (!area || (p.addr ?? '').includes(area)) && (!q || p.title.includes(q)))
+      .map((p) => ({ ...p, km: Math.round(kmBetween(AIRPORT, p) * 10) / 10 }))
+      .sort((a, b) => (sort === 'airport' ? a.km - b.km : a.title.localeCompare(b.title, 'ko')))
+  }, [data, area, name, sort])
+  const pins = useMemo(() => list.slice(0, 200).map((p) => ({ id: p.id, title: p.title, lat: p.lat, lng: p.lng, type: kind })), [list, kind])
+  const sel = list.find((p) => p.id === selId)
+
+  return (
+    <>
+      <div className="d-flex flex-wrap gap-2 mb-3">
+        {RENT_KINDS.map((k) => (
+          <button key={k.id} type="button" className={`jp-month ${kind === k.id ? 'on' : ''}`} onClick={() => { setKind(k.id); setSelId(null) }}>
+            <i className={`bi bi-${k.icon} me-1`} />{k.label}
+          </button>
+        ))}
+      </div>
+      <div className="d-flex flex-wrap gap-2 mb-2">
+        <Select value={area} onChange={(v) => { setArea(v); setSelId(null) }} options={['제주시', '서귀포시']} all="지역 전체" label="지역" />
+        <select className="form-select" value={sort} onChange={(e) => setSort(e.target.value)} aria-label="정렬" style={{ maxWidth: 200 }}>
+          <option value="airport">제주공항에서 가까운 순</option>
+          <option value="name">이름순</option>
+        </select>
+        <input className="form-control" placeholder="업체 이름 검색" value={name} onChange={(e) => setName(e.target.value)} style={{ maxWidth: 220 }} aria-label="업체 이름 검색" />
+      </div>
+      <p className="small text-muted">
+        {kind === 'rentcar' ? '제주 렌터카 업체의 위치예요.' : '무인 대여 쏘카존 주차장의 위치예요.'} 요금·보유 차량·예약은 제공되지 않아요. 업체를 누르면 지도에 표시되고, 예약은 카카오맵 페이지의 연락처로 문의하세요. · {list.length}곳
+      </p>
+      <Status loading={loading} error={error} empty={!loading && !error && !list.length} emptyText="조건에 맞는 곳이 없어요" />
+      {list.length > 0 && (
+        <Row className="g-3">
+          <Col lg={7}>
+            <div className="d-grid gap-2" style={{ maxHeight: 520, overflowY: 'auto' }}>
+              {list.slice(0, 80).map((p) => (
+                <div key={p.id} className={`jp-place jp-place-pick ${p.id === selId ? 'on' : ''}`} style={{ display: 'block' }}>
+                  <button type="button" className="jp-place-head" onClick={() => setSelId(p.id)}>
+                    <div className="jp-place-img"><i className={`bi bi-${kind === 'socar' ? 'ev-front' : 'car-front'} text-jp`} /></div>
+                    <div className="min-w-0 flex-grow-1 text-start">
+                      <div className="fw-semibold text-truncate">{p.title}</div>
+                      <div className="small text-muted text-truncate">{p.addr}</div>
+                      <div className="small mt-1 text-muted"><i className="bi bi-airplane me-1" />제주공항에서 약 {p.km}km</div>
+                    </div>
+                  </button>
+                  {p.id === selId && (
+                    <div className="d-flex flex-wrap gap-2 mt-2">
+                      <a className="btn btn-sm btn-outline-sea" target="_blank" rel="noreferrer" href={mapToLink(p.title, p.lat, p.lng)}><i className="bi bi-signpost me-1" />길찾기</a>
+                      {p.url && <a className="btn btn-sm btn-outline-sea" target="_blank" rel="noreferrer" href={p.url.replace(/^http:/, 'https:')}><i className="bi bi-telephone me-1" />카카오맵 정보·연락처</a>}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            {list.length > 80 && <div className="small text-muted mt-2">가까운 순 80곳만 목록에 보여요. 지역이나 이름으로 좁혀 보세요.</div>}
+          </Col>
+          <Col lg={5}>
+            <div className="jp-route-map rounded-3 overflow-hidden border" style={{ height: 520 }}>
+              <KakaoMap spots={pins} selectedId={sel?.id ?? null} onSelect={(p) => setSelId(p?.id ?? null)} />
+            </div>
+            <div className="small text-muted mt-2">핀을 누르면 목록에서 해당 업체가 선택돼요. 핀은 최대 200곳까지 표시돼요.</div>
+          </Col>
+        </Row>
+      )}
+    </>
+  )
+}
+
 // ── 숙박: 주소로 위치를 찾아 지도에 표시 ───────────────────────
 function LodgingMap({ item }) {
   const { data, loading } = useAsync(async () => (await findAddress(item.addr)) ?? (await findPlace(item.name)), [item.name, item.addr])
@@ -169,7 +257,7 @@ export default function Info() {
     <>
       <PageBanner
         img="/images/jeju-stonewall.jpg" pos="50% 70%" eyebrow="여행 정보" title="떠나기 전에 확인하세요"
-        sub="버스 도착·위치, 공항·여객선 운항 스케줄, 한라산 둘레길, 숙박을 공공데이터로 확인하고 지도에서 위치를 볼 수 있어요."
+        sub="버스 도착·위치, 공항·여객선 운항 스케줄, 렌터카 위치, 한라산 둘레길, 숙박을 공공데이터로 확인하고 지도에서 위치를 볼 수 있어요."
       />
       <Container className="pt-4">
         <div className="jp-tabs" style={{ overflowX: 'auto' }}>
@@ -184,6 +272,7 @@ export default function Info() {
         {tab === 'bus' && <BusTransit />}
         {tab === 'airport' && <AirportTab />}
         {tab === 'ferry' && <FerryTab />}
+        {tab === 'rent' && <RentTab />}
         {tab === 'lodging' && <LodgingTab />}
       </Container>
     </>
