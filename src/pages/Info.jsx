@@ -26,9 +26,13 @@ function TrailTab() {
   const { data, loading, error } = useAsync(() => fetchHub('trail'), [])
   return (
     <>
-      <Status loading={loading} error={error} empty={!loading && !error && !data?.length} emptyText="코스 정보가 없어요" />
+      <Status loading={loading} error={error} empty={!loading && !error && !data?.length}
+        emptyText="받아온 코스가 없어요. 제주데이터허브 프로젝트에 '한라산 둘레길 코스별 정보' API 가 담겨 있는지 확인하세요. (/api/hub?kind=trail&debug=1 로 원본 응답을 볼 수 있어요)" />
+      {data?.length > 0 && data.every((t) => !t.course) && (
+        <div className="alert alert-warning small">데이터는 받았지만 항목 이름이 달라 표시하지 못했어요. <code>/api/hub?kind=trail&amp;debug=1</code> 결과를 확인해 주세요.</div>
+      )}
       <Row xs={1} sm={2} lg={3} className="g-3">
-        {data?.map((t, i) => (
+        {data?.filter((t) => t.course).map((t, i) => (
           <Col key={`${t.course}-${i}`}>
             <div className="jp-tool">
               <i className="bi bi-tree" />
@@ -68,7 +72,7 @@ function TrafficTab() {
           ? <Select value={sigungu} onChange={setSigungu} options={['제주시', '서귀포시']} all="제주 전체" label="시군구" />
           : (
             <form className="d-flex gap-2" onSubmit={(e) => { e.preventDefault(); setQ(name.trim()) }}>
-              <input className="form-control" placeholder="정류소 이름 (예: 제주공항)" value={name} onChange={(e) => setName(e.target.value)} style={{ maxWidth: 240 }} />
+              <input className="form-control" placeholder="정류소 이름 (예: 제주국제공항, 성산)" value={name} onChange={(e) => setName(e.target.value)} style={{ maxWidth: 240 }} />
               <button className="btn btn-primary" type="submit"><i className="bi bi-search" /></button>
             </form>
           )}

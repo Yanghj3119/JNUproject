@@ -5,6 +5,7 @@ import Explore from './pages/Explore'
 import PhotoDetail from './pages/PhotoDetail'
 import Map3D from './pages/Map3D'
 import Info from './pages/Info'
+import SharedRoute from './pages/SharedRoute'
 import Agent from './pages/Agent'
 import My from './pages/My'
 import Login from './pages/Login'
@@ -33,6 +34,7 @@ export const router = createBrowserRouter([
       { path: 'photo/:id', element: <PhotoDetail /> },
       { path: 'map', element: <Map3D /> },
       { path: 'info', element: <Info /> },
+      { path: 'share', element: <SharedRoute /> },
       { path: 'my', element: <My /> },
       { path: 'login', element: <Login /> },
       { path: 'status', element: <StatusPage /> },

@@ -3,6 +3,8 @@ import { typeMeta } from '../lib/format'
 
 const KEY = import.meta.env.VITE_KAKAO_MAP_KEY
 export const hasKakaoKey = Boolean(KEY)
+// 어떤 키가 쓰이는지 확인용 — 끝 4자리만 보여 준다 (카카오 콘솔의 JavaScript 키 끝자리와 비교)
+export const kakaoKeyHint = KEY ? `…${KEY.slice(-4)}` : ''
 
 // 카카오맵 SDK 를 한 번만 불러온다
 let sdk
@@ -14,11 +16,17 @@ function loadKakao() {
     s.onload = () => window.kakao.maps.load(() => resolve(window.kakao))
     s.onerror = () => {
       sdk = null
-      reject(new Error(`카카오맵을 불러오지 못했어요. ① JavaScript 키인지 ② 카카오 앱의 Web 플랫폼에 ${window.location.origin} 이 등록됐는지 ③ 제품 설정에서 '카카오맵' 사용이 ON 인지 확인하세요.`))
+      reject(new Error(`카카오맵을 불러오지 못했어요. 사용 중인 키 ${kakaoKeyHint} — ① 카카오 콘솔의 "JavaScript 키" 끝자리와 같은지(REST API 키·어드민 키는 안 됨) ② 그 키의 "JavaScript SDK 도메인"에 ${window.location.origin} 이 등록됐는지 ③ 제품 설정에서 '카카오맵' 사용이 ON 인지 확인하세요.`))
     }
     document.head.appendChild(s)
   })
   return sdk
+}
+
+// /status 용 진단: 실제로 SDK 를 불러 보고 결과를 돌려준다
+export function checkKakao() {
+  if (!KEY) return Promise.resolve({ ok: false, message: 'VITE_KAKAO_MAP_KEY 가 없어요 (Vercel 은 환경변수 등록 후 Redeploy 필요)' })
+  return loadKakao().then(() => ({ ok: true, message: '' })).catch((e) => ({ ok: false, message: e.message }))
 }
 
 // 두 가지 모드

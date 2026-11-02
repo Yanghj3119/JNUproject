@@ -3,6 +3,7 @@ import { NavLink, Link, Outlet, ScrollRestoration } from 'react-router-dom'
 import { Container, Nav, Navbar, Toast, ToastContainer } from 'react-bootstrap'
 import { NAV_ITEMS } from '../router'
 import { useAppStore } from '../store/useAppStore'
+import { displayName } from '../lib/format'
 
 // 로고: 오름의 부드러운 곡선 + 제주 바다의 물결 + 감귤빛 점 (심플한 도형만 사용)
 const Mark = () => (
@@ -24,7 +25,7 @@ export default function RootLayout() {
 
   useEffect(() => { initAuth() }, [initAuth])
 
-  const name = user?.user_metadata?.name || user?.email?.split('@')[0]
+  const name = displayName(user)
 
   return (
     <div className="jp-shell">

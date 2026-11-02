@@ -8,6 +8,7 @@ import PlaceCard from '../components/PlaceCard'
 import Status from '../components/Status'
 import WeatherBadge from '../components/WeatherBadge'
 import CrowdChart from '../components/CrowdChart'
+import ShareButton from '../components/ShareButton'
 import KakaoMap, { hasKakaoKey } from '../components/KakaoMap'
 
 // 사진 한 장 → get_photo_info(촬영지·시기) → 그 장소의 날씨 · 주변 명소(find_nearby) · 무장애 · 연관 관광지
@@ -55,10 +56,15 @@ export default function PhotoDetail() {
         <Col lg={5}>
           <div className="d-flex justify-content-between align-items-start gap-2">
             <h1 className="h3 fw-bold">{photo?.title || title}</h1>
-            <button type="button" className={`btn btn-sm jp-iconbtn fs-4 ${faved ? 'on' : ''}`} aria-label="보관함에 담기"
-              onClick={() => toggle({ source: 'photo', id, title: photo?.title || title, image: heroImage })}>
-              <i className={`bi bi-heart${faved ? '-fill' : ''}`} />
-            </button>
+            <div className="d-flex align-items-center flex-shrink-0">
+              <ShareButton className="btn btn-sm jp-iconbtn fs-5" label="" getContent={() => ({
+                title: photo?.title || title, description: photo?.location || place?.title || '제주 사진 명소', url: window.location.href, imageUrl: heroImage,
+              })} />
+              <button type="button" className={`btn btn-sm jp-iconbtn fs-4 ${faved ? 'on' : ''}`} aria-label="위시리스트에 담기"
+                onClick={() => toggle({ source: 'photo', id, title: photo?.title || title, image: heroImage })}>
+                <i className={`bi bi-heart${faved ? '-fill' : ''}`} />
+              </button>
+            </div>
           </div>
 
           <div className="jp-panel mb-3">

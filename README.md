@@ -54,6 +54,14 @@ Supabase 는 `supabase/schema.sql` 을 SQL Editor 에서 실행해 테이블을 
 - 위성사진: [Sentinel-2 cloudless 2020](https://s2maps.eu) © EOX IT Services GmbH — Contains modified Copernicus Sentinel data 2020, **CC BY-NC-SA 4.0 (비영리·출처 표기 필수)**. 상업적 서비스로 쓰려면 EOX 라이선스를 별도로 받아야 합니다.
 - 타일을 못 받으면 단순화된 3D 섬(`JejuStylized.jsx`)으로 자동 대체됩니다.
 
+## 카카오 로그인 · 링크 공유
+- **공유**: 코스 공유 링크(`/share?d=…`)는 코스 정보가 주소에 들어 있어 서버 저장 없이 누구나 열 수 있습니다. 카카오톡 공유는 지도와 같은 JavaScript 키(`VITE_KAKAO_MAP_KEY`)를 쓰며, 카카오 앱의 **JavaScript SDK 도메인**에 사이트 주소가 등록돼 있어야 합니다. 키가 없으면 기기 공유창 → 링크 복사로 대체됩니다.
+- **카카오 로그인** (Supabase Auth 의 Kakao provider):
+  1. 카카오 디벨로퍼스 → 제품 설정 → **카카오 로그인** ON, Redirect URI 에 `https://<프로젝트>.supabase.co/auth/v1/callback` 등록
+  2. 카카오 로그인 → 보안 → **Client Secret** 발급·활성화, 동의항목에서 닉네임 등 설정 (이메일은 비즈 앱이어야 받을 수 있음)
+  3. Supabase → Authentication → Sign In / Providers → **Kakao** 활성화, 카카오 **REST API 키**(Client ID)와 Client Secret 입력
+  4. Supabase → Authentication → URL Configuration 의 Site URL / Redirect URLs 에 배포 주소와 `http://localhost:5173` 추가
+
 ## 이미지
 `public/images/` 의 사진 8장(홈 히어로·테마 카드·페이지 배너·로그인·404)은 Pixabay 무료 이미지(Pixabay 콘텐츠 라이선스)를 웹용(가로 1800px, JPEG)으로 줄인 것입니다.
 

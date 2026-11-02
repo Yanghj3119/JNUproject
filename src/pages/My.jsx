@@ -2,9 +2,12 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Col, Container, Row } from 'react-bootstrap'
 import { useAppStore } from '../store/useAppStore'
+import { displayName } from '../lib/format'
 import { isSupabaseReady } from '../lib/supabase'
 import KakaoMap from '../components/KakaoMap'
 import PageBanner from '../components/PageBanner'
+import ShareButton from '../components/ShareButton'
+import { routeShareUrl } from '../lib/share'
 import Status from '../components/Status'
 
 const dateOf = (iso) => new Date(iso).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
@@ -23,6 +26,7 @@ function RouteCard({ route }) {
           <div className="small text-muted">{dateOf(route.created_at)} · {stops.length}곳 · 총 {km}km</div>
         </div>
         <div className="d-flex gap-1">
+          <ShareButton getContent={() => ({ title: route.title, description: stops.map((s) => s.name).join(' → '), url: routeShareUrl({ title: route.title, stops }) })} />
           <button className="btn btn-sm btn-outline-sea" onClick={() => setOpen(!open)}>{open ? '접기' : '지도로 보기'}</button>
           <button className="btn btn-sm btn-outline-sea" aria-label="경로 삭제" onClick={() => window.confirm('이 경로를 삭제할까요?') && del(route.id)}><i className="bi bi-trash" /></button>
         </div>
@@ -73,7 +77,7 @@ export default function My() {
     )
   }
 
-  const name = user?.user_metadata?.name || user?.email?.split('@')[0]
+  const name = displayName(user)
 
   return (
     <>

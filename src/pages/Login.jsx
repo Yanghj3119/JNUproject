@@ -19,6 +19,7 @@ export default function Login() {
   const user = useAppStore((s) => s.user)
   const signIn = useAppStore((s) => s.signIn)
   const signUp = useAppStore((s) => s.signUp)
+  const signInKakao = useAppStore((s) => s.signInKakao)
   const toast = useAppStore((s) => s.toast)
 
   const [mode, setMode] = useState('in') // 'in' | 'up'
@@ -30,6 +31,12 @@ export default function Login() {
   if (user) return <Navigate to="/my" replace />
 
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value })
+
+  const kakao = async () => {
+    setError(''); setNotice('')
+    try { await signInKakao() } // 성공하면 카카오 화면으로 이동하므로 이후 코드는 실행되지 않음
+    catch (err) { setError(korean(err.message)) }
+  }
 
   const submit = async (e) => {
     e.preventDefault()
@@ -66,6 +73,12 @@ export default function Login() {
         <p className="text-muted small mb-4">로그인하면 위시리스트와 AI가 만든 코스를 언제든 다시 볼 수 있어요.</p>
 
         {!isSupabaseReady && <div className="alert alert-warning small">Supabase 설정(<code>.env.local</code>)이 없어 로그인할 수 없어요.</div>}
+
+        <button type="button" className="jp-kakao-btn" onClick={kakao} disabled={!isSupabaseReady}>
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="#191919" d="M12 3C6.48 3 2 6.58 2 11c0 2.84 1.87 5.33 4.69 6.75l-.95 3.5c-.08.3.26.54.52.37l4.16-2.77c.52.06 1.05.1 1.58.1 5.52 0 10-3.58 10-8S17.52 3 12 3z" /></svg>
+          카카오로 시작하기
+        </button>
+        <div className="jp-or"><span>또는 이메일로</span></div>
 
         <div className="jp-tabs" role="tablist">
           <button type="button" className={`jp-tab ${mode === 'in' ? 'on' : ''}`} onClick={() => { setMode('in'); setError(''); setNotice('') }}>로그인</button>

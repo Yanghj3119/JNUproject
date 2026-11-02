@@ -4,10 +4,12 @@ import { useAsync } from '../lib/useAsync'
 import { isSupabaseReady } from '../lib/supabase'
 import PageHeader from '../components/PageHeader'
 import Status from '../components/Status'
+import { checkKakao } from '../components/KakaoMap'
 
 // 각 공공데이터 API가 실제로 응답하는지 점검 (활용신청 승인 여부 확인용)
 export default function StatusPage() {
   const { data, loading, error } = useAsync(fetchHealth, [])
+  const kakao = useAsync(checkKakao, [])
 
   const row = (name, ok, detail) => (
     <li key={name} className="list-group-item d-flex justify-content-between align-items-start gap-3">
@@ -26,7 +28,7 @@ export default function StatusPage() {
         {data && row('서버 함수 /api', true)}
         {data && row('공공데이터포털 키', data.keys.dataGoKr, data.keys.dataGoKr ? '' : 'DATA_GO_KR_KEY 가 없어요')}
         {data && row('제주데이터허브 프로젝트 키', data.keys.jejuHub, data.keys.jejuHub ? '' : 'JEJU_DATAHUB_KEY 가 없어요')}
-        {row('카카오맵 키', Boolean(import.meta.env.VITE_KAKAO_MAP_KEY), import.meta.env.VITE_KAKAO_MAP_KEY ? `허용 도메인에 ${window.location.origin} 등록 필요` : 'VITE_KAKAO_MAP_KEY 가 없어요')}
+        {kakao.data && row('카카오맵 SDK 로드', kakao.data.ok, kakao.data.ok ? `${window.location.origin} 에서 정상` : kakao.data.message)}
         {data && row('Claude 키 (AI 가이드)', data.keys.anthropic, data.keys.anthropic ? '' : 'ANTHROPIC_API_KEY 가 없어요')}
         {data?.checks.map((c) => row(c.name, c.ok, c.ok ? `${c.ms}ms` : c.error))}
       </ul>

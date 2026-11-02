@@ -4,6 +4,8 @@ import { Container } from 'react-bootstrap'
 import { useAppStore } from '../store/useAppStore'
 import KakaoMap from '../components/KakaoMap'
 import PageBanner from '../components/PageBanner'
+import ShareButton from '../components/ShareButton'
+import { routeShareUrl } from '../lib/share'
 
 const TOOL_LABEL = {
   search_photos: ['images', '사진 검색'],
@@ -55,11 +57,16 @@ function RoutePanel({ route, summary }) {
             <h2 className="h5 fw-bold mb-0">{route.title}</h2>
             <div className="small text-muted">{route.stops.length}곳 · 총 {route.total_km}km (직선거리 기준)</div>
           </div>
-          {isSaved
-            ? <Link to="/my" className="btn btn-sm btn-outline-sea text-nowrap"><i className="bi bi-check2 me-1" />저장됨</Link>
-            : <button className="btn btn-sm btn-primary text-nowrap" onClick={async () => { if (await saveRoute({ title: route.title, summary, stops: route.stops })) setSaved(route.title) }}>
-                <i className="bi bi-bookmark-plus me-1" />내 경로에 저장
-              </button>}
+          <div className="d-flex gap-1 flex-shrink-0">
+            <ShareButton getContent={() => ({
+              title: route.title, description: route.stops.map((s) => s.name).join(' → '), url: routeShareUrl(route),
+            })} />
+            {isSaved
+              ? <Link to="/my" className="btn btn-sm btn-outline-sea text-nowrap"><i className="bi bi-check2 me-1" />저장됨</Link>
+              : <button className="btn btn-sm btn-primary text-nowrap" onClick={async () => { if (await saveRoute({ title: route.title, summary, stops: route.stops })) setSaved(route.title) }}>
+                  <i className="bi bi-bookmark-plus me-1" />저장
+                </button>}
+          </div>
         </div>
         {!user && <div className="small text-muted mt-2"><Link to="/login">로그인</Link>하면 저장해서 다시 볼 수 있어요.</div>}
 

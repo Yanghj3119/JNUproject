@@ -9,6 +9,12 @@ export function shuffleDiverse(list = [], cap = 2) {
   return a.filter((p) => (seen[p.title] = (seen[p.title] ?? 0) + 1) <= cap)
 }
 
+// 로그인 사용자 표시 이름 — 이메일 가입(name), 카카오 로그인(name/nickname 등)을 모두 처리
+export const displayName = (user) => {
+  const m = user?.user_metadata ?? {}
+  return m.name || m.full_name || m.nickname || m.user_name || user?.email?.split('@')[0] || '회원'
+}
+
 export const distLabel = (m) => (m == null ? '' : m < 1000 ? `${m}m` : `${(m / 1000).toFixed(1)}km`)
 
 // 사진 상세 페이지 주소 — 새로고침해도 다시 조회할 수 있게 제목·촬영지를 쿼리로 담는다
