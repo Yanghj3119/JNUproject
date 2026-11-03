@@ -4,7 +4,7 @@ import { searchLodging, getTrails, listHubPlaces, debugHub } from '../server/hub
 // /api/hub?kind=trail|lodging&...   (&debug=1 → 제주데이터허브 원본 응답 점검)
 const KINDS = {
   trail: (q) => getTrails({ course: q.course }),
-  lodging: (q) => searchLodging({ name: q.name, type: q.type, status: q.status || '영업/정상' }),
+  lodging: (q) => searchLodging({ name: q.name, type: q.type, status: q.status || '영업/정상', limit: Math.min(Number(q.limit) || 30, 500) }),
   rentcar: (q) => listHubPlaces({ kind: 'rentcar', name: q.name }), // 렌터카 업체 위치
   socar: (q) => listHubPlaces({ kind: 'socar', name: q.name }),     // 쏘카존 위치
 }

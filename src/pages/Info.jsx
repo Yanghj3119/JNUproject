@@ -4,7 +4,7 @@ import { Col, Container, Row } from 'react-bootstrap'
 import { fetchHub } from '../api/client'
 import { useAsync } from '../lib/useAsync'
 import { TRAIL_POINTS } from '../data/trailPoints'
-import { findAddress, findLodgingInfo, findPlace, mapSearchLink, mapToLink, mapWalkLink } from '../lib/kakaoGeo'
+import { findLodgingInfo, findPlace, mapSearchLink, mapToLink, mapWalkLink } from '../lib/kakaoGeo'
 import { roadRoute } from '../lib/routing'
 import KakaoMap from '../components/KakaoMap'
 import Jeju3D from '../components/Jeju3D'
@@ -249,42 +249,43 @@ function RentTab() {
   )
 }
 
-// ── 숙박: 주소로 위치를 찾아 지도에 표시 ───────────────────────
-function LodgingMap({ item }) {
-  // 전화번호·카카오맵 페이지는 카카오 장소 검색에서 찾는다 (제주데이터허브 숙박 정보에는 연락처가 없다)
-  const info = useAsync(() => findLodgingInfo(item.name, item.addr), [item.name, item.addr])
-  const { data, loading } = useAsync(async () => (await findAddress(item.addr)) ?? info.data ?? (await findPlace(item.name)), [item.name, item.addr, info.data])
-  const spots = useMemo(() => (data ? [{ id: 'lodging', title: item.name, lat: data.lat, lng: data.lng, type: '32' }] : []), [data, item.name])
+// ── 숙박: 지도에 전체 숙박시설을 보여 주고, 핀을 누르면 그 숙소의 정보를 보여 준다 ───────────────
+// 숙박 목록(제주데이터허브)에는 주소만 있어서, 주소를 좌표로 바꾼 결과를 public/data/lodging.json 에 미리 저장해 두었다 (420곳).
+function LodgingDetail({ item, onClose }) {
+  // 전화번호·카카오맵 페이지는 시설을 눌렀을 때 카카오 장소 검색에서 찾는다 (숙박 데이터에는 연락처가 없다)
+  const info = useAsync(() => findLodgingInfo(item.n, item.a), [item.n, item.a])
   const i = info.data
   const phone = i?.phone?.trim()
-  const homepageSearch = `https://www.google.com/search?q=${encodeURIComponent(`${item.name.replace(/\(주\)|\(유\)|주식회사/g, '').trim()} 제주 공식 홈페이지`)}`
+  const homepageSearch = `https://www.google.com/search?q=${encodeURIComponent(`${item.n.replace(/\(주\)|\(유\)|주식회사/g, '').trim()} 제주 공식 홈페이지`)}`
 
   return (
-    <div className="mt-3">
-      <div className="jp-lodge-info">
+    <div>
+      <div className="d-flex justify-content-between align-items-start gap-2">
+        <div>
+          {item.t && <span className="jp-tag" style={{ '--c': '#0e6f7a' }}>{item.t}</span>}
+          <h2 className="h5 fw-bold mt-2 mb-1">{item.n}</h2>
+        </div>
+        <button type="button" className="btn btn-sm btn-outline-sea" onClick={onClose} aria-label="선택 해제"><i className="bi bi-x-lg" /></button>
+      </div>
+      <div className="jp-lodge-info mt-2">
         <div><i className="bi bi-telephone me-2" />전화
           {info.loading ? <span className="text-muted ms-2">찾는 중…</span>
             : phone ? <a className="ms-2 fw-semibold" href={`tel:${phone.replace(/[^\d+]/g, '')}`}>{phone}</a>
               : <span className="text-muted ms-2">등록된 번호를 찾지 못했어요</span>}
         </div>
-        <div><i className="bi bi-geo-alt me-2" />주소<span className="ms-2">{item.addr}</span></div>
-        {item.jibun && <div className="text-muted small ms-4">지번 {item.jibun}</div>}
+        <div><i className="bi bi-geo-alt me-2" />주소<span className="ms-2">{item.a}</span></div>
+        {item.j && <div className="text-muted small ms-4">지번 {item.j}</div>}
         {i?.category && <div><i className="bi bi-tag me-2" />분류<span className="ms-2">{i.category.split('>').slice(-2).map((s) => s.trim()).join(' > ')}</span></div>}
-        {item.rooms != null && <div><i className="bi bi-door-closed me-2" />객실<span className="ms-2">{item.rooms}개</span></div>}
-        {item.since && <div><i className="bi bi-calendar-check me-2" />인허가일<span className="ms-2">{item.since}</span></div>}
-        {item.updated && <div className="small text-muted ms-4">정보 갱신 {item.updated}</div>}
+        {item.r != null && <div><i className="bi bi-door-closed me-2" />객실<span className="ms-2">{item.r}개</span></div>}
+        {item.s && <div><i className="bi bi-calendar-check me-2" />인허가일<span className="ms-2">{item.s}</span></div>}
+        {item.u && <div className="small text-muted ms-4">정보 갱신 {item.u}</div>}
       </div>
-      {data ? (
-        <div className="jp-route-map rounded-3 overflow-hidden border" style={{ height: 240 }}><KakaoMap spots={spots} selectedId="lodging" /></div>
-      ) : (
-        <div className="small text-muted">{loading ? '위치를 찾는 중…' : '지도에서 위치를 찾지 못했어요. 카카오맵에서 직접 검색해 보세요.'}</div>
-      )}
-      <div className="d-flex flex-wrap gap-2 mt-2">
-        {data && <a className="btn btn-sm btn-outline-sea" target="_blank" rel="noreferrer" href={mapToLink(item.name, data.lat, data.lng)}><i className="bi bi-signpost me-1" />길찾기</a>}
+      <div className="d-grid gap-2">
         {phone && <a className="btn btn-sm btn-primary" href={`tel:${phone.replace(/[^\d+]/g, '')}`}><i className="bi bi-telephone me-1" />전화 걸기</a>}
-        <a className="btn btn-sm btn-outline-sea" target="_blank" rel="noreferrer" href={i?.url ? i.url.replace(/^http:/, 'https:') : mapSearchLink(item.name)}><i className="bi bi-map me-1" />카카오맵 정보·후기</a>
+        <a className="btn btn-sm btn-outline-sea" target="_blank" rel="noreferrer" href={mapToLink(item.n, item.lat, item.lng)}><i className="bi bi-signpost me-1" />길찾기</a>
+        <a className="btn btn-sm btn-outline-sea" target="_blank" rel="noreferrer" href={i?.url ? i.url.replace(/^http:/, 'https:') : mapSearchLink(item.n)}><i className="bi bi-map me-1" />카카오맵 정보·후기</a>
         <a className="btn btn-sm btn-outline-sea" target="_blank" rel="noreferrer" href={homepageSearch}><i className="bi bi-globe me-1" />홈페이지 검색</a>
-        <Link className="btn btn-sm btn-primary" to={askLink(`${item.name} 근처에서 가볼 만한 곳과 맛집으로 반나절 코스를 만들어줘`)}><i className="bi bi-stars me-1" />주변 코스 물어보기</Link>
+        <Link className="btn btn-sm btn-primary" to={askLink(`${item.n} 근처에서 가볼 만한 곳과 맛집으로 반나절 코스를 만들어줘`)}><i className="bi bi-stars me-1" />주변 코스 물어보기</Link>
       </div>
     </div>
   )
@@ -292,45 +293,67 @@ function LodgingMap({ item }) {
 
 function LodgingTab() {
   const [type, setType] = useState('')
-  const [name, setName] = useState('')
+  const [area, setArea] = useState('')
   const [q, setQ] = useState('')
-  const [open, setOpen] = useState(null)
-  const { data, loading, error } = useAsync(() => fetchHub('lodging', { type, name: q }), [type, q])
+  const [selIdx, setSelIdx] = useState(null)
+  const { data, loading, error } = useAsync(() => fetch('/data/lodging.json').then((r) => { if (!r.ok) throw new Error('숙박 목록을 불러오지 못했어요'); return r.json() }), [])
+
+  const all = useMemo(() => (data ?? []).map((p, idx) => ({ ...p, idx })), [data])
+  const list = useMemo(() => {
+    const k = q.trim().toLowerCase()
+    return all.filter((p) => (!type || p.t === type) && (!area || p.a.includes(area)) && (!k || p.n.toLowerCase().includes(k)))
+  }, [all, type, area, q])
+  const pins = useMemo(() => list.map((p) => ({ id: p.idx, title: p.n, lat: p.lat, lng: p.lng, type: '32' })), [list])
+  const sel = selIdx != null ? all[selIdx] : null
+  const counts = useMemo(() => {
+    const c = {}
+    list.forEach((p) => { c[p.t || '기타'] = (c[p.t || '기타'] ?? 0) + 1 })
+    return Object.entries(c).sort((a, b) => b[1] - a[1])
+  }, [list])
 
   return (
     <>
-      <form className="d-flex flex-wrap gap-2 mb-3" onSubmit={(e) => { e.preventDefault(); setOpen(null); setQ(name.trim()) }}>
-        <Select value={type} onChange={(v) => { setOpen(null); setType(v) }} options={LODGING_TYPES} all="업종 전체" label="업종" />
-        <input className="form-control" placeholder="숙소 이름 (선택)" value={name} onChange={(e) => setName(e.target.value)} style={{ maxWidth: 240 }} />
-        <button className="btn btn-primary" type="submit" aria-label="검색"><i className="bi bi-search" /></button>
-      </form>
-      <p className="small text-muted">영업 중인 관광 숙박업만 보여요. 숙소를 누르면 지도에서 위치를 볼 수 있어요. 예약·요금 정보는 제공되지 않아요.</p>
-      <Status loading={loading} error={error} empty={!loading && !error && !data?.length} emptyText="조건에 맞는 숙소가 없어요" />
-      <div className="d-grid gap-2">
-        {data?.map((l, i) => {
-          const key = `${l.name}-${i}`
-          const isOpen = open === key
-          return (
-            <div key={key} className={`jp-place jp-place-pick ${isOpen ? 'on' : ''}`} style={{ display: 'block' }}>
-              <button type="button" className="jp-place-head" onClick={() => setOpen(isOpen ? null : key)} aria-expanded={isOpen}>
-                <div className="jp-place-img"><i className="bi bi-building text-jp" /></div>
-                <div className="min-w-0 flex-grow-1 text-start">
-                  <div className="fw-semibold text-truncate">{l.name}</div>
-                  <div className="small text-muted text-truncate">{l.addr}</div>
-                  {(l.type || l.rooms != null) && (
-                    <div className="small mt-1">
-                      {l.type && <span className="jp-tag" style={{ '--c': '#0e6f7a' }}>{l.type}</span>}
-                      {l.rooms != null && <span className="ms-2 text-muted">객실 {l.rooms}개</span>}
+      <div className="d-flex flex-wrap gap-2 mb-2">
+        <Select value={type} onChange={(v) => { setSelIdx(null); setType(v) }} options={LODGING_TYPES} all="업종 전체" label="업종" />
+        <Select value={area} onChange={(v) => { setSelIdx(null); setArea(v) }} options={['제주시', '서귀포시']} all="지역 전체" label="지역" />
+        <input className="form-control" placeholder="숙소 이름 검색" value={q} onChange={(e) => { setSelIdx(null); setQ(e.target.value) }} style={{ maxWidth: 240 }} aria-label="숙소 이름 검색" />
+      </div>
+      <p className="small text-muted">영업 중인 관광 숙박업 {all.length}곳의 위치예요. 핀을 누르면 그 숙소의 정보를 볼 수 있어요. 예약·요금 정보는 제공되지 않아요. · 지금 {list.length}곳 표시</p>
+      <Status loading={loading} error={error} empty={!loading && !error && !all.length} emptyText="숙박 정보가 없어요" />
+      {all.length > 0 && (
+        <Row className="g-3">
+          <Col lg={8}>
+            <div className="jp-route-map rounded-3 overflow-hidden border" style={{ height: 560 }}>
+              <KakaoMap spots={pins} selectedId={sel?.idx ?? null} onSelect={(p) => setSelIdx(p ? p.id : null)} />
+            </div>
+            <div className="small text-muted mt-2">파란 핀이 숙소예요. 핀을 누르면 이름이 보이고 오른쪽에 정보가 나와요.</div>
+          </Col>
+          <Col lg={4}>
+            <div className="jp-panel" style={{ maxHeight: 560, overflowY: 'auto' }}>
+              {sel ? <LodgingDetail key={sel.idx} item={sel} onClose={() => setSelIdx(null)} /> : (
+                <>
+                  <div className="jp-eyebrow mb-1">숙박시설</div>
+                  <h2 className="h5 fw-bold mb-2">지도에서 숙소를 골라 보세요</h2>
+                  <div className="small text-muted mb-3">{list.length}곳 · 업종별</div>
+                  {counts.map(([t, n]) => <div key={t} className="d-flex justify-content-between small py-1 border-top"><span>{t}</span><span className="fw-semibold">{n}곳</span></div>)}
+                  {q.trim() && list.length > 0 && (
+                    <div className="mt-3">
+                      <div className="small fw-semibold mb-1">검색 결과 (누르면 선택)</div>
+                      {list.slice(0, 12).map((p) => (
+                        <button key={p.idx} type="button" className="jp-listbtn" onClick={() => setSelIdx(p.idx)}>
+                          <i className="bi bi-building text-jp me-2" />{p.n}
+                        </button>
+                      ))}
+                      {list.length > 12 && <div className="small text-muted mt-1">외 {list.length - 12}곳은 지도에서 확인하세요</div>}
                     </div>
                   )}
-                </div>
-                <i className={`bi bi-chevron-${isOpen ? 'up' : 'down'} text-muted`} />
-              </button>
-              {isOpen && <LodgingMap item={l} />}
+                  {!list.length && <div className="small text-muted mt-3">조건에 맞는 숙소가 없어요</div>}
+                </>
+              )}
             </div>
-          )
-        })}
-      </div>
+          </Col>
+        </Row>
+      )}
     </>
   )
 }
