@@ -40,7 +40,7 @@ export default function Explore() {
         </div>
 
         <Status loading={loading} error={error} empty={!loading && !error && !list.length} emptyText="검색 결과가 없어요" />
-        <Row xs={1} sm={2} lg={3} xl={4} className="g-3">
+        <Row xs={2} sm={2} lg={3} xl={4} className="g-2 g-md-3">
           {list.map((p) => <Col key={p.id || p.image}><PhotoCard photo={p} /></Col>)}
         </Row>
       </Container>

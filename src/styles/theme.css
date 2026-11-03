@@ -348,3 +348,34 @@ button.jp-pick.on { border-color: var(--jp-ink); box-shadow: inset 0 0 0 1px var
 .jp-info .btn-group .btn-outline-sea { background-color: #fff; border-width: 2px; }
 
 .jp-slide-wait { position: absolute; left: 0.8rem; bottom: 0.8rem; background: rgba(0, 0, 0, 0.6); color: #fff; font-size: 0.8rem; border-radius: 999px; padding: 0.25rem 0.8rem; }
+
+/* ── 모바일 전용: 스크롤 줄이기 (데스크톱 화면은 그대로) ─────────────────── */
+@media (max-width: 767px) {
+  /* 가로로 밀어 넘기는 카드 줄 (테마·도구 카드) */
+  .jp-hscroll { flex-wrap: nowrap; overflow-x: auto; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; margin-inline: -0.75rem; padding: 0 0.75rem 0.5rem; scrollbar-width: none; }
+  .jp-hscroll::-webkit-scrollbar { display: none; }
+  .jp-hscroll > * { flex: 0 0 72%; max-width: 72%; scroll-snap-align: start; }
+  .jp-hscroll.jp-hscroll-sm > * { flex-basis: 82%; max-width: 82%; }
+  .jp-hscroll .jp-theme-card { aspect-ratio: 4 / 3; }
+  /* 칩 줄은 한 줄로 두고 옆으로 민다 */
+  .jp-chiprow { flex-wrap: nowrap !important; overflow-x: auto; margin-inline: -0.75rem; padding: 0 0.75rem 0.4rem; scrollbar-width: none; }
+  .jp-chiprow::-webkit-scrollbar { display: none; }
+  .jp-chiprow > * { flex: 0 0 auto; white-space: nowrap; }
+  /* 사진 카드는 두 줄로, 안쪽 여백·글씨를 줄인다 */
+  .jp-photo-img { aspect-ratio: 1 / 1; }
+  .jp-photo-body { padding: 0.5rem 0.6rem 0.6rem; }
+  .jp-photo-body .fw-semibold { font-size: 0.86rem; }
+  .jp-photo-body .small { font-size: 0.72rem; }
+  .jp-photo-body .btn-sm { padding: 0.2rem 0.4rem; font-size: 0.76rem; }
+  /* 배너·푸터 */
+  .jp-banner { min-height: 120px; border-radius: 14px; }
+  .jp-banner-inner { padding: 1.1rem 1.1rem; gap: 0.5rem; }
+  .jp-banner-sub { display: none; }
+  .jp-footer { font-size: 0.74rem; padding-block: 1rem; margin-top: 2rem; }
+  .jp-main .py-5 { padding-top: 1.5rem !important; padding-bottom: 1.5rem !important; }
+  .jp-main .pb-5 { padding-bottom: 1.5rem !important; }
+  .jp-hero-weather { margin-top: 1.2rem; }
+  .jp-prompts { flex-wrap: nowrap; overflow-x: auto; margin-inline: -0.75rem; padding-inline: 0.75rem; scrollbar-width: none; }
+  .jp-prompts::-webkit-scrollbar { display: none; }
+  .jp-prompts > * { flex: 0 0 auto; white-space: nowrap; }
+}

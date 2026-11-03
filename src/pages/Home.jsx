@@ -131,7 +131,7 @@ export default function Home() {
         <div className="jp-eyebrow mb-1">Themes</div>
         <h2 className="h4 jp-section-title mb-1">오늘은 어디로 떠나볼까요</h2>
         <p className="text-muted mb-4">마음에 드는 풍경을 고르면 AI가 그 주제로 코스를 만들어 드려요.</p>
-        <Row xs={1} sm={2} lg={3} className="g-3">
+        <Row xs={1} sm={2} lg={3} className="g-3 jp-hscroll">
           {THEMES.map((t) => (
             <Col key={t.title}>
               <Link to={`/agent?q=${encodeURIComponent(t.prompt)}`} className="jp-theme-card">
@@ -151,7 +151,7 @@ export default function Home() {
         <div className="jp-eyebrow mb-1">How it works</div>
         <h2 className="h4 jp-section-title mb-1">AI가 직접 확인하고 답해요</h2>
         <p className="text-muted mb-4">카드를 누르면 그 데이터를 쓰는 질문을 AI에게 바로 던져 볼 수 있어요. 답변마다 호출한 도구도 화면에 보여 드려요.</p>
-        <Row xs={1} sm={2} lg={3} className="g-3">
+        <Row xs={1} sm={2} lg={3} className="g-3 jp-hscroll jp-hscroll-sm">
           {TOOLS.map((t) => (
             <Col key={t.name}>
               <Link to={`/agent?q=${encodeURIComponent(t.prompt)}`} className="jp-tool">
@@ -174,7 +174,7 @@ export default function Home() {
           <Link to="/explore" className="text-decoration-none small">사진 더 보기 <i className="bi bi-arrow-right" /></Link>
         </div>
         <Status loading={photos.loading} error={photos.error} empty={!photos.loading && !photos.error && !gallery.length} />
-        <Row xs={1} sm={2} lg={4} className="g-3">
+        <Row xs={2} sm={2} lg={4} className="g-2 g-md-3">
           {gallery.map((p) => <Col key={p.id || p.image}><PhotoCard photo={p} /></Col>)}
         </Row>
       </Container>

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Col, Container, Row } from 'react-bootstrap'
 import { fetchSpots, fetchWeather } from '../api/client'
 import { useAsync } from '../lib/useAsync'
+import { useIsMobile } from '../lib/useIsMobile'
 import { PHOTO_THEMES, themeLabel, themesOf } from '../data/photoThemes'
 import { mapToLink, reverseAddress } from '../lib/kakaoGeo'
 import { listSpots } from '../lib/userSpots'
@@ -75,6 +76,8 @@ export default function PhotoSpots() {
   const [theme, setTheme] = useState('all')
   const [q, setQ] = useState('')
   const [selId, setSelId] = useState(null)
+  const mobile = useIsMobile()
+  const [more, setMore] = useState(1) // 모바일: 12곳씩 늘려 가며 보여 준다
 
   // 관광지 최대 300곳(100개씩 3쪽)을 받아 이미지 있는 곳만 사용
   const all = useAsync(async () => {
@@ -119,19 +122,19 @@ export default function PhotoSpots() {
       </PageBanner>
 
       <Container className="pt-4">
-        <div className="d-flex flex-wrap gap-2 mb-3">
-          <button type="button" className={`jp-month ${theme === 'all' ? 'on' : ''}`} onClick={() => setTheme('all')}>전체 {spots.length || ''}</button>
+        <div className="d-flex flex-wrap gap-2 mb-3 jp-chiprow">
+          <button type="button" className={`jp-month ${theme === 'all' ? 'on' : ''}`} onClick={() => { setTheme('all'); setMore(1) }}>전체 {spots.length || ''}</button>
           {PHOTO_THEMES.map((t) => (
-            <button key={t.id} type="button" className={`jp-month ${theme === t.id ? 'on' : ''}`} onClick={() => setTheme(t.id)} disabled={!all.loading && !counts[t.id]}>
+            <button key={t.id} type="button" className={`jp-month ${theme === t.id ? 'on' : ''}`} onClick={() => { setTheme(t.id); setMore(1) }} disabled={!all.loading && !counts[t.id]}>
               <i className={`bi bi-${t.icon} me-1`} />{t.label} {counts[t.id] || ''}
             </button>
           ))}
-          <button type="button" className={`jp-month ${isTraveler ? 'on' : ''}`} onClick={() => { setTheme('traveler'); setSelId(null) }}>
+          <button type="button" className={`jp-month ${isTraveler ? 'on' : ''}`} onClick={() => { setTheme('traveler'); setSelId(null); setMore(1) }}>
             <i className="bi bi-people me-1" />여행자 {travelers.length || ''}
           </button>
         </div>
-        <div className="d-flex flex-wrap gap-2 align-items-center mb-4">
-          <input className="form-control" style={{ maxWidth: 280 }} placeholder="명소 이름 검색" value={q} onChange={(e) => setQ(e.target.value)} aria-label="명소 이름 검색" />
+        <div className="d-flex flex-wrap gap-2 align-items-center mb-3 mb-md-4">
+          <input className="form-control" style={{ maxWidth: 280 }} placeholder="명소 이름 검색" value={q} onChange={(e) => { setQ(e.target.value); setMore(1) }} aria-label="명소 이름 검색" />
           <span className="small text-muted">{cur ? cur.desc : '제주 곳곳의 사진 명소'} · {list.length}{isTraveler ? '장' : '곳'}</span>
           <Link to="/spots/upload" className="btn btn-sm btn-outline-sea ms-auto"><i className="bi bi-cloud-arrow-up me-1" />내 사진 올리기</Link>
         </div>
@@ -140,20 +143,23 @@ export default function PhotoSpots() {
 
         {list.length > 0 && (
           <Row className="g-4">
-            <Col lg={7} xl={8}>
-              <Row xs={1} sm={2} xl={3} className="g-3">
+            <Col lg={7} xl={8} className="order-2 order-lg-1">
+              <Row xs={2} sm={2} xl={3} className="g-2 g-md-3">
                 {isTraveler
-                  ? list.map((t) => <Col key={t.id}><TravelerCard photo={t} active={selId === `u-${t.id}`} onSelect={() => setSelId(`u-${t.id}`)} /></Col>)
-                  : list.slice(0, 60).map((sp) => <Col key={sp.id}><SpotCard spot={sp} active={sp.id === selId} onSelect={() => setSelId(sp.id)} /></Col>)}
+                  ? list.slice(0, mobile ? 12 * more : list.length).map((t) => <Col key={t.id}><TravelerCard photo={t} active={selId === `u-${t.id}`} onSelect={() => setSelId(`u-${t.id}`)} /></Col>)
+                  : list.slice(0, mobile ? Math.min(60, 12 * more) : 60).map((sp) => <Col key={sp.id}><SpotCard spot={sp} active={sp.id === selId} onSelect={() => setSelId(sp.id)} /></Col>)}
               </Row>
+              {mobile && list.length > 12 * more && (isTraveler || 12 * more < 60) && (
+                <button type="button" className="btn btn-outline-sea w-100 mt-3" onClick={() => setMore((n) => n + 1)}>더 보기 ({Math.min(list.length, isTraveler ? list.length : 60) - 12 * more}곳 남음)</button>
+              )}
               {!isTraveler && list.length > 60 && <div className="small text-muted mt-3">상위 60곳만 보여요. 테마나 검색어로 좁혀 보세요.</div>}
             </Col>
-            <Col lg={5} xl={4}>
+            <Col lg={5} xl={4} className="order-1 order-lg-2">
               <div className="jp-sticky-map">
-                <div className="jp-route-map rounded-3 overflow-hidden border" style={{ height: 460 }}>
+                <div className="jp-route-map rounded-3 overflow-hidden border" style={{ height: mobile ? 260 : 460 }}>
                   <KakaoMap spots={pins} selectedId={selId} onSelect={(p) => setSelId(p?.id ?? null)} locate />
                 </div>
-                <div className="small text-muted mt-2">{isTraveler ? '여행자가 올린 사진의 위치예요. 핀을 누르면 해당 카드가 강조돼요.' : '핀을 누르면 해당 카드가 강조돼요. 지도 핀은 최대 120곳까지 표시해요.'}</div>
+                <div className="small text-muted mt-2 d-none d-md-block">{isTraveler ? '여행자가 올린 사진의 위치예요. 핀을 누르면 해당 카드가 강조돼요.' : '핀을 누르면 해당 카드가 강조돼요. 지도 핀은 최대 120곳까지 표시해요.'}</div>
               </div>
             </Col>
           </Row>
