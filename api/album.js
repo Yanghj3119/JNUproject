@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk'
 
 // 미니앨범 문구 만들기 — 브라우저가 줄여서 보낸 사진(최대 5장)을 보고 제목과 장면별 한 줄 문구를 만든다.
 // 사진은 이 요청을 처리하는 동안만 메모리에 있고, 서버나 Supabase 에 저장하지 않는다.
-const FAST_MODEL = process.env.ALBUM_MODEL || process.env.AGENT_MODEL || 'claude-haiku-5-5'
+const FAST_MODEL = process.env.ALBUM_MODEL || process.env.AGENT_MODEL || 'claude-sonnet-5-5'
 const MAX_PHOTOS = 5
 const MAX_B64 = 1_400_000 // 사진 1장(base64) 최대 길이 — 브라우저가 이미 줄여서 보낸다
 

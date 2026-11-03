@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { tools, runTool } from '../server/tools.js'
 
-const MODEL = process.env.AGENT_MODEL || 'claude-haiku-5-5' // 환경변수로 모델을 바꿀 수 있다 (예: claude-sonnet-5-5, claude-opus-5-5)
+const MODEL = process.env.AGENT_MODEL || 'claude-sonnet-5-5' // 시연 영상 촬영용으로 Sonnet. 평소에는 'claude-haiku-5-5' 로 되돌리면 비용이 줄어든다 (환경변수 AGENT_MODEL 로도 바꿀 수 있다)
 
 const SYSTEM = `너는 제주를 처음 여행하는 관광객을 돕는 여행 가이드 에이전트 "제주픽 AI"다.
 - 사진·장소·날씨·혼잡도·접근성 정보는 반드시 도구로 확인한 뒤 답한다.
@@ -73,7 +73,7 @@ export default async function handler(req, res) {
         const text = r.content.filter((b) => b.type === 'text').map((b) => b.text).join('\n').trim()
         // 답 글자가 비어 있어도 화면이 비지 않게 한다
         const answer = text || (route ? '코스를 만들었어요. 아래 코스를 확인해 주세요.' : '답을 정리하지 못했어요. 위의 도구 결과를 참고하시거나 질문을 조금 바꿔 다시 물어봐 주세요.')
-        return res.status(200).json({ answer, steps, route })
+        return res.status(200).json({ answer, steps, route, model: MODEL })
       }
 
       messages.push({ role: 'assistant', content: r.content })

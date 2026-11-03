@@ -33,7 +33,7 @@
 | 내 보관함 (`/my`) | 위시리스트(선택해 AI 코스 만들기) · 내 경로 · 내 사진(업로드 삭제) |
 
 ## AI 구조와 비용 관리
-- **에이전트(`api/agent.js`)**: 기본 모델 `claude-haiku-5-5`(환경변수 `AGENT_MODEL`로 변경). 질문에 맞는 도구(`server/tools.js`, 15종: 사진·날씨·혼잡도·접근성·주변 검색·버스·공항·선박·숙박·둘레길 등)를 스스로 골라 호출하고, 방문 순서와 좌표가 있는 코스(`propose_route`)로 답합니다.
+- **에이전트(`api/agent.js`)**: 기본 모델 `claude-sonnet-5-5`(시연 영상 촬영용, 평소에는 `claude-haiku-5-5`로 되돌려 비용 절감, 환경변수 `AGENT_MODEL`로 변경). 질문에 맞는 도구(`server/tools.js`, 15종: 사진·날씨·혼잡도·접근성·주변 검색·버스·공항·선박·숙박·둘레길 등)를 스스로 골라 호출하고, 방문 순서와 좌표가 있는 코스(`propose_route`)로 답합니다.
 - **AI는 "해석"만, 실제 작업은 코드가**: 사진 편집에서 AI는 편집 명령(JSON)만 돌려주고, 보정은 브라우저가 합니다. 이미지를 AI에게 만들게 하지 않아 토큰이 적게 듭니다.
 - **쉬운 말은 AI를 거치지 않음**: "밝게·흑백·정사각형·필름 느낌" 같은 자주 쓰는 요청과 예시 버튼은 코드가 해석합니다(토큰 0). 사진의 특정 부분(하늘·배경·사람 등)을 지목한 요청만 AI로 넘어갑니다.
 - **사용량 제한**: 사진 편집의 AI 해석은 로그인 필요, **1인 하루 10회 · 전체 하루 500회**(한국 시간 기준). 횟수는 Supabase 함수가 세며 service_role 키는 쓰지 않습니다(`supabase/ai_usage.sql`). 한도를 넘어도 슬라이더·필터는 계속 쓸 수 있습니다.
@@ -69,7 +69,7 @@ npm run dev                    # http://localhost:5173  (화면 + /api 서버 �
 |---|---|
 | `DATA_GO_KR_KEY` | 공공데이터포털 인증키 (Decoding 키). 활용신청이 승인된 모든 API에 공통 |
 | `ANTHROPIC_API_KEY` | AI 가이드·사진 편집·미니앨범 문구 (서버 전용) |
-| `AGENT_MODEL` (선택) | 에이전트 모델. 기본 `claude-haiku-5-5`. 미니앨범은 `ALBUM_MODEL`로 따로 지정 가능 |
+| `AGENT_MODEL` (선택) | 에이전트 모델. 기본 `claude-sonnet-5-5`(비용을 줄이려면 `claude-haiku-5-5`). 미니앨범은 `ALBUM_MODEL`로 따로 지정 가능 |
 | `JEJU_DATAHUB_KEY` | 제주데이터허브 프로젝트 키 (오름·둘레길·올레길·버스·공항·선박·숙박·렌터카) |
 | `KAKAO_REST_KEY` (선택) | 카카오 장소 검색(서버 전용). AI가 유명 장소를 정확히 찾도록 도움 |
 | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | Supabase (보관함·대화기록·사용량 제한). anon/publishable 키만 사용 (service_role 금지) |
