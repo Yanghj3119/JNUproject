@@ -12,14 +12,14 @@ import PageBanner from '../components/PageBanner'
 import { BusTransit, AirportTab, FerryTab } from '../components/TransitTab'
 import Status from '../components/Status'
 
-// 여행 정보: 대중교통(버스) · 공항 · 선박 · 렌터카 · 한라산 둘레길 · 숙박 (둘레길·숙박은 제주데이터허브, 버스·공항은 공공데이터포털)
+// 여행 정보: 대중교통(버스) · 공항 · 선박 · 렌터카 · 올레길·한라산 둘레길 · 숙박 (둘레길·숙박은 제주데이터허브, 버스·공항은 공공데이터포털)
 // 좌표가 없는 데이터(둘레길·숙박)는 카카오 장소·주소 검색으로 위치를 찾아 지도에 표시한다.
 const TABS = [
   { id: 'bus', label: '대중교통', icon: 'bus-front' },
   { id: 'airport', label: '공항', icon: 'airplane' },
   { id: 'ferry', label: '선박', icon: 'water' },
   { id: 'rent', label: '렌터카', icon: 'car-front' },
-  { id: 'trail', label: '한라산 둘레길', icon: 'tree' },
+  { id: 'trail', label: '올레길·둘레길', icon: 'signpost-2' },
   { id: 'lodging', label: '숙박', icon: 'building' },
 ]
 
@@ -112,7 +112,7 @@ function TrailTab() {
                   </div>
                 ) : (
                   <div className="jp-route-map rounded-3 overflow-hidden border" style={{ height: 460 }}>
-                    {route.length ? <KakaoMap route={route} profile="foot" onRoad={setRoad} /> : (
+                    {route.length ? <KakaoMap route={route} profile="foot" onRoad={setRoad} locate /> : (
                       <div className="h-100 d-grid text-muted text-center p-4" style={{ placeItems: 'center' }}>
                         {pts.loading ? '위치를 찾는 중…' : '시점·종점 위치를 지도에서 찾지 못했어요. 오른쪽 버튼으로 카카오맵에서 직접 검색해 보세요.'}
                       </div>
@@ -239,7 +239,7 @@ function RentTab() {
           </Col>
           <Col lg={5}>
             <div className="jp-route-map rounded-3 overflow-hidden border" style={{ height: 520 }}>
-              <KakaoMap spots={pins} selectedId={sel?.id ?? null} onSelect={(p) => setSelId(p?.id ?? null)} />
+              <KakaoMap spots={pins} selectedId={sel?.id ?? null} onSelect={(p) => setSelId(p?.id ?? null)} locate />
             </div>
             <div className="small text-muted mt-2">핀을 누르면 목록에서 해당 업체가 선택돼요. 핀은 최대 200곳까지 표시돼요.</div>
           </Col>
@@ -324,7 +324,7 @@ function LodgingTab() {
         <Row className="g-3">
           <Col lg={8}>
             <div className="jp-route-map rounded-3 overflow-hidden border" style={{ height: 560 }}>
-              <KakaoMap spots={pins} selectedId={sel?.idx ?? null} onSelect={(p) => setSelIdx(p ? p.id : null)} />
+              <KakaoMap spots={pins} selectedId={sel?.idx ?? null} onSelect={(p) => setSelIdx(p ? p.id : null)} locate />
             </div>
             <div className="small text-muted mt-2">파란 핀이 숙소예요. 핀을 누르면 이름이 보이고 오른쪽에 정보가 나와요.</div>
           </Col>
@@ -358,13 +358,122 @@ function LodgingTab() {
   )
 }
 
+// ── 제주올레길 ───────────────────────────────────────────────
+// 두루누비·공공데이터포털에는 제주올레 경로 데이터가 없어서, OpenStreetMap 에 기록된 코스(1~6, 16, 18, 19코스)는 실제 경로선으로 그리고
+// 나머지 코스는 시점·종점만 점선으로 이어 보여 준다. 시점·종점 좌표는 카카오 장소 검색 결과를 미리 저장해 두었다 (public/data/olle.json).
+const OLLE_SITE = 'https://www.jejuolle.org/'
+
+function OlleTab() {
+  const { data, loading, error } = useAsync(() => fetch('/data/olle.json').then((r) => { if (!r.ok) throw new Error('올레길 데이터를 불러오지 못했어요'); return r.json() }), [])
+  const list = useMemo(() => data ?? [], [data])
+  const [selNo, setSelNo] = useState(null)
+  const [view, setView] = useState('3d') // '3d' | 'map'
+  const cur = list.find((c) => c.no === selNo) ?? list[0] ?? null
+
+  const lines = useMemo(() => list.map((c, i) => ({
+    id: `olle-${c.no}`, color: TRAIL_COLORS[i % TRAIL_COLORS.length], active: c.no === cur?.no, dashed: c.basis !== 'osm', segments: c.segments,
+  })), [list, cur])
+  const pins = useMemo(() => (cur ? [
+    { id: 'start', title: `시점 · ${cur.from}`, lat: cur.a.lat, lng: cur.a.lng, type: 'trail' },
+    { id: 'end', title: `종점 · ${cur.to}`, lat: cur.b.lat, lng: cur.b.lng, type: 'trail' },
+  ] : []), [cur])
+  const focus = useMemo(() => {
+    if (!cur) return null
+    const all = cur.segments.flat()
+    return { lat: all.reduce((s, p) => s + p[0], 0) / all.length, lng: all.reduce((s, p) => s + p[1], 0) / all.length }
+  }, [cur])
+  const traced = cur?.basis === 'osm'
+
+  return (
+    <>
+      <Status loading={loading} error={error} empty={!loading && !error && !list.length} emptyText="올레길 정보가 없어요" />
+      {list.length > 0 && (
+        <>
+          <p className="small text-muted">
+            코스를 누르면 3D 지도에 시점·종점이 표시돼요. <b>실선</b>은 OpenStreetMap에 기록된 실제 올레길 경로이고, <b>점선</b>은 경로 데이터가 없어 시점과 종점만 이은 선이에요(실제 길이 아니에요).
+          </p>
+          <Row xs={2} sm={3} lg={6} className="g-2 mb-4">
+            {list.map((c, i) => (
+              <Col key={c.no}>
+                <button type="button" className={`jp-tool jp-pick ${cur?.no === c.no ? 'on' : ''}`} onClick={() => setSelNo(c.no)} style={{ padding: '0.6rem 0.7rem' }}>
+                  <div className="d-flex align-items-center gap-2">
+                    <span style={{ width: 14, height: 4, background: TRAIL_COLORS[i % TRAIL_COLORS.length], borderRadius: 2, display: 'inline-block', opacity: c.basis === 'osm' ? 1 : 0.5 }} />
+                    <span className="fw-semibold">{c.name}</span>
+                  </div>
+                  <div className="small text-muted mt-1">{c.title}</div>
+                  <div className="small">{c.km != null ? `약 ${c.km}km` : <span className="text-muted">거리 정보 없음</span>}</div>
+                </button>
+              </Col>
+            ))}
+          </Row>
+
+          {cur && (
+            <Row className="g-3">
+              <Col lg={8}>
+                <div className="btn-group btn-group-sm mb-2" role="group" aria-label="지도 보기 방식">
+                  <button type="button" className={`btn ${view === '3d' ? 'btn-primary' : 'btn-outline-sea'}`} onClick={() => setView('3d')}><i className="bi bi-badge-3d me-1" />3D 지도</button>
+                  <button type="button" className={`btn ${view === 'map' ? 'btn-primary' : 'btn-outline-sea'}`} onClick={() => setView('map')}><i className="bi bi-map me-1" />평면 지도</button>
+                </div>
+                {view === '3d' ? (
+                  <div className="jp-map" style={{ height: 460, minHeight: 0 }}>
+                    <Jeju3D spots={pins} lines={lines} focus={focus} exaggeration={3} />
+                    <div className="jp-map-hint"><i className="bi bi-mouse me-1" />드래그: 회전 · 휠: 확대·축소 · 굵은 선이 선택한 코스</div>
+                  </div>
+                ) : (
+                  <div className="jp-route-map rounded-3 overflow-hidden border" style={{ height: 460 }}>
+                    <KakaoMap spots={pins} lines={lines} labels locate />
+                  </div>
+                )}
+                <div className="small text-muted mt-2">
+                  {traced
+                    ? `선택한 ${cur.name}는 OpenStreetMap에 기록된 올레길 경로를 그렸고, 거리는 그 경로를 잰 값(약 ${cur.km}km)이라 공식 안내와 조금 다를 수 있어요.`
+                    : `${cur.name}는 경로 데이터가 없어 시점과 종점을 점선으로만 이었어요. 실제 올레길 경로와 거리는 제주올레 공식 안내를 확인하세요.`}
+                </div>
+              </Col>
+              <Col lg={4}>
+                <div className="jp-panel">
+                  <div className="jp-eyebrow mb-1">선택한 코스</div>
+                  <h2 className="h5 fw-bold mb-1">제주올레 {cur.name}</h2>
+                  <div className="text-muted mb-3">{cur.title}{cur.km != null ? ` · 약 ${cur.km}km` : ''}</div>
+                  <div className="jp-stop"><span className="n">1</span><div><div className="fw-semibold">{cur.from}</div><div className="leg">시점</div></div></div>
+                  <div className="jp-stop"><span className="n">2</span><div><div className="fw-semibold">{cur.to}</div><div className="leg">종점</div></div></div>
+                  <div className="d-grid gap-2 mt-3">
+                    <a className="btn btn-sm btn-outline-sea" target="_blank" rel="noreferrer" href={mapWalkLink({ ...cur.a, name: cur.from }, { ...cur.b, name: cur.to })}><i className="bi bi-person-walking me-1" />카카오맵 도보 길찾기</a>
+                    <a className="btn btn-sm btn-outline-sea" target="_blank" rel="noreferrer" href={mapToLink(cur.from, cur.a.lat, cur.a.lng)}><i className="bi bi-signpost me-1" />시점까지 길찾기</a>
+                    <a className="btn btn-sm btn-outline-sea" target="_blank" rel="noreferrer" href={OLLE_SITE}><i className="bi bi-box-arrow-up-right me-1" />제주올레 공식 사이트</a>
+                    <Link className="btn btn-sm btn-primary" to={askLink(`제주올레 ${cur.name}(${cur.title})를 걷기 좋은 시간대, 날씨, 근처에 같이 갈 곳을 알려줘`)}><i className="bi bi-stars me-1" />AI에게 이 코스 물어보기</Link>
+                  </div>
+                </div>
+              </Col>
+            </Row>
+          )}
+        </>
+      )}
+    </>
+  )
+}
+
+// 올레길 · 한라산 둘레길 — 같은 탭에서 하위 메뉴로 나눠 본다
+function WalkTab() {
+  const [sub, setSub] = useState('olle')
+  return (
+    <>
+      <div className="btn-group mb-3" role="group" aria-label="걷기길 종류">
+        <button type="button" className={`btn btn-sm ${sub === 'olle' ? 'btn-primary' : 'btn-outline-sea'}`} onClick={() => setSub('olle')}><i className="bi bi-signpost-2 me-1" />제주올레길</button>
+        <button type="button" className={`btn btn-sm ${sub === 'hallasan' ? 'btn-primary' : 'btn-outline-sea'}`} onClick={() => setSub('hallasan')}><i className="bi bi-tree me-1" />한라산 둘레길</button>
+      </div>
+      {sub === 'olle' ? <OlleTab /> : <TrailTab />}
+    </>
+  )
+}
+
 export default function Info() {
   const [tab, setTab] = useState('bus')
   return (
     <>
       <PageBanner
         img="/images/jeju-stonewall.jpg" pos="50% 70%" eyebrow="여행 정보" title="떠나기 전에 확인하세요"
-        sub="버스 도착·위치, 공항·여객선 운항 스케줄, 렌터카 위치, 한라산 둘레길, 숙박을 공공데이터로 확인하고 지도에서 위치를 볼 수 있어요."
+        sub="버스 도착·위치, 공항·여객선 운항 스케줄, 렌터카 위치, 올레길·한라산 둘레길, 숙박을 공공데이터로 확인하고 지도에서 위치를 볼 수 있어요."
       />
       <Container className="pt-4">
         <div className="jp-tabs" style={{ overflowX: 'auto' }}>
@@ -375,7 +484,7 @@ export default function Info() {
           ))}
         </div>
 
-        {tab === 'trail' && <TrailTab />}
+        {tab === 'trail' && <WalkTab />}
         {tab === 'bus' && <BusTransit />}
         {tab === 'airport' && <AirportTab />}
         {tab === 'ferry' && <FerryTab />}

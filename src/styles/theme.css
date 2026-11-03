@@ -197,6 +197,8 @@ h1, h2, h3, h4, h5 { letter-spacing: -0.025em; }
 .jp-kpin span { position: absolute; left: 50%; bottom: 130%; transform: translateX(-50%) rotate(45deg); background: var(--jp-ink); color: #fff; padding: 0.2rem 0.65rem; border-radius: 6px; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .jp-lodge-info { display: grid; gap: 0.25rem; font-size: 0.9rem; padding: 0.7rem 0.85rem; background: #f6f9fb; border: 1px solid var(--jp-line); border-radius: 10px; margin-bottom: 0.75rem; }
 .jp-lodge-info .bi { color: var(--jp-sea); }
+.jp-search-pop { position: absolute; z-index: 30; left: 0; right: 0; top: calc(100% + 4px); background: #fff; border: 1px solid var(--jp-line); border-radius: 10px; box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18); max-height: 320px; overflow-y: auto; padding: 0.25rem; }
+.jp-search-head { font-size: 0.72rem; font-weight: 700; color: var(--jp-ink-2); padding: 0.4rem 0.6rem 0.15rem; }
 .jp-dot { width: 9px; height: 9px; border-radius: 50%; background: #fff; border: 2px solid #0e6f7a; }
 .jp-num { width: 26px; height: 26px; border-radius: 50%; background: var(--jp-ink); color: #fff; border: 2px solid #fff; display: grid; place-items: center; font-size: 12px; font-weight: 700; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35); }
 

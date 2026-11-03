@@ -63,6 +63,20 @@ export function findLodgingInfo(name, addr) {
   })
 }
 
+// 지도 검색창용: 장소 이름·주소로 제주 안의 장소 여러 곳 찾기 → [{ title, addr, lat, lng, url, category }]
+export function searchJejuPlaces(query, limit = 8) {
+  const q = String(query ?? '').trim()
+  if (q.length < 2) return Promise.resolve([])
+  return memo(`s:${q}`, async () => {
+    const found = (await search(q)).filter(inJeju).slice(0, limit)
+      .map((d) => ({ title: d.place_name, addr: d.road_address_name || d.address_name, lat: Number(d.y), lng: Number(d.x), url: d.place_url, category: d.category_name }))
+    if (found.length) return found
+    // 이름으로 안 나오면 주소(예: "제주시 연동 263-15")로 한 번 더
+    const a = await findAddress(q.startsWith('제주') ? q : `제주특별자치도 ${q}`)
+    return a ? [{ title: q, addr: q, lat: a.lat, lng: a.lng, url: '', category: '주소' }] : []
+  })
+}
+
 // 주소로 좌표 찾기 → { lat, lng } | null
 export function findAddress(address) {
   const clean = String(address ?? '').split(',')[0].replace(/\(.*?\)/g, '').trim() // "…삼성로 10, 호텔 (이도일동)" → "…삼성로 10"

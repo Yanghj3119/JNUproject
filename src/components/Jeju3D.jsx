@@ -337,7 +337,8 @@ function RouteLines({ lines, terrain, exag }) {
     })),
   })), [lines, terrain, exag])
   return items.flatMap((l) => l.pts.map((p, i) => (
-    <Line key={`${l.id}-${i}`} points={p} color={l.color} lineWidth={l.active ? 4.5 : 2} transparent opacity={l.active ? 1 : 0.5} />
+    <Line key={`${l.id}-${i}`} points={p} color={l.color} lineWidth={l.active ? 4.5 : 2} transparent opacity={l.active ? 1 : 0.5}
+      dashed={Boolean(l.dashed)} dashSize={0.1} gapSize={0.07} />
   )))
 }
 

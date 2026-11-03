@@ -69,7 +69,7 @@ function BusArrivals() {
               )}
             </div>
             <div className="jp-route-map rounded-3 overflow-hidden border" style={{ height: 240 }}>
-              <KakaoMap spots={pins} selectedId={cur?.id} onSelect={(p) => p && setStopId(p.id)} />
+              <KakaoMap spots={pins} selectedId={cur?.id} onSelect={(p) => p && setStopId(p.id)} locate />
             </div>
           </Col>
         </Row>
@@ -115,7 +115,7 @@ function BusPositions() {
           <Row className="g-3">
             <Col lg={8}>
               <div className="jp-route-map rounded-3 overflow-hidden border" style={{ height: 400 }}>
-                <KakaoMap route={routeStops.length > 1 ? routeStops : undefined} spots={pins} numbered={false} profile="driving" waypoints={200} onRoad={setRoad} />
+                <KakaoMap route={routeStops.length > 1 ? routeStops : undefined} spots={pins} numbered={false} profile="driving" waypoints={200} onRoad={setRoad} locate />
               </div>
               <div className="small text-muted mt-2">
                 {routeStops.length > 1
@@ -246,7 +246,7 @@ export function FerryTab() {
         출발 항구를 고르면 지도에 항구 위치와 항로가 나오고, 오늘 운항 예정 시간표가 아래에 나와요{data?.note ? ` (${data.note})` : ''}. 예정 시각이라 기상에 따라 결항될 수 있어요.
       </p>
       <div className="jp-route-map rounded-3 overflow-hidden border mb-3" style={{ height: 320 }}>
-        <KakaoMap spots={pins} links={links} labels onSelect={goPort} />
+        <KakaoMap spots={pins} links={links} labels onSelect={goPort} locate />
       </div>
       <div className="small text-muted mb-3">진한 파란 핀은 출발 항구, 연한 핀은 오가는 항구예요. 점선은 항로를 간단히 이은 선이고, 항구 위치는 카카오맵 기준이에요.</div>
       <Status loading={loading} error={error} empty={!loading && !error && !data?.sailings?.length} emptyText="오늘 이 항구에서 출발하는 배 정보가 없어요" />

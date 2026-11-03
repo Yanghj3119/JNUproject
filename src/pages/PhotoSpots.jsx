@@ -105,7 +105,7 @@ export default function PhotoSpots() {
             <Col lg={5} xl={4}>
               <div className="jp-sticky-map">
                 <div className="jp-route-map rounded-3 overflow-hidden border" style={{ height: 460 }}>
-                  <KakaoMap spots={pins} selectedId={selId} onSelect={(p) => setSelId(p?.id ?? null)} />
+                  <KakaoMap spots={pins} selectedId={selId} onSelect={(p) => setSelId(p?.id ?? null)} locate />
                 </div>
                 <div className="small text-muted mt-2">핀을 누르면 해당 카드가 강조돼요. 지도 핀은 최대 120곳까지 표시해요.</div>
               </div>

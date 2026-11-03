@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Col, Container, Row } from 'react-bootstrap'
 import { fetchAccess, fetchNearby, fetchSpots, fetchWeather } from '../api/client'
@@ -10,6 +10,7 @@ import Jeju3D, { WEATHER_REGIONS } from '../components/Jeju3D'
 import KakaoMap from '../components/KakaoMap'
 import MyLocationButton from '../components/MyLocationButton'
 import { useMyLocation } from '../lib/useMyLocation'
+import { searchJejuPlaces } from '../lib/kakaoGeo'
 import PlaceCard from '../components/PlaceCard'
 import Status from '../components/Status'
 import WeatherBadge from '../components/WeatherBadge'
@@ -43,9 +44,61 @@ function phaseNow(sun) {
   return now > ss - 60 || now < sr + 50 ? 'golden' : 'day'
 }
 
+// 지도 검색창: 지금 지도에 올라온 장소 이름 + 카카오 장소·주소 검색(제주 안)을 함께 찾는다
+function MapSearch({ spots, onPick }) {
+  const [q, setQ] = useState('')
+  const [open, setOpen] = useState(false)
+  const [remote, setRemote] = useState([])
+  const [busy, setBusy] = useState(false)
+
+  const local = useMemo(() => {
+    const k = q.trim().toLowerCase()
+    return k.length < 1 ? [] : (spots ?? []).filter((s) => String(s.title).toLowerCase().includes(k)).slice(0, 5)
+  }, [q, spots])
+
+  // 입력을 멈추고 0.4초 뒤에 카카오 검색 (너무 자주 부르지 않게)
+  useEffect(() => {
+    const k = q.trim()
+    if (k.length < 2) { setRemote([]); setBusy(false); return }
+    setBusy(true)
+    let alive = true
+    const t = setTimeout(() => searchJejuPlaces(k, 6).then((r) => { if (alive) { setRemote(r); setBusy(false) } }).catch(() => alive && setBusy(false)), 400)
+    return () => { alive = false; clearTimeout(t) }
+  }, [q])
+
+  const pickLocal = (s) => { setOpen(false); setQ(s.title); onPick({ kind: 'local', spot: s }) }
+  const pickRemote = (r) => { setOpen(false); setQ(r.title); onPick({ kind: 'remote', place: r }) }
+  const first = local[0] ? () => pickLocal(local[0]) : remote[0] ? () => pickRemote(remote[0]) : null
+
+  return (
+    <div className="position-relative mb-2" style={{ maxWidth: 520 }}>
+      <form className="d-flex gap-2" onSubmit={(e) => { e.preventDefault(); first?.() }}>
+        <input className="form-control" placeholder="장소·주소 검색 (예: 성산일출봉, 함덕해수욕장, 제주시 연동)" value={q}
+          onChange={(e) => { setQ(e.target.value); setOpen(true) }} onFocus={() => setOpen(true)} aria-label="지도에서 장소 검색" />
+        <button className="btn btn-primary" type="submit" aria-label="검색" disabled={!first}><i className="bi bi-search" /></button>
+        {q && <button type="button" className="btn btn-outline-sea" aria-label="검색어 지우기" onClick={() => { setQ(''); setOpen(false); onPick({ kind: 'clear' }) }}><i className="bi bi-x-lg" /></button>}
+      </form>
+      {open && q.trim() && (
+        <div className="jp-search-pop">
+          {local.length > 0 && <div className="jp-search-head">지금 지도에 있는 장소</div>}
+          {local.map((s) => <button key={`l-${s.id}`} type="button" className="jp-listbtn" onClick={() => pickLocal(s)}><i className="bi bi-geo-alt text-jp me-2" />{s.title}</button>)}
+          {(remote.length > 0 || busy) && <div className="jp-search-head">{busy ? '검색 중…' : '카카오 장소·주소 검색'}</div>}
+          {remote.map((r, i) => (
+            <button key={`r-${i}`} type="button" className="jp-listbtn" onClick={() => pickRemote(r)}>
+              <i className="bi bi-search text-jp me-2" />{r.title}<span className="small text-muted ms-2">{r.addr}</span>
+            </button>
+          ))}
+          {!busy && !local.length && !remote.length && q.trim().length >= 2 && <div className="small text-muted p-2">검색 결과가 없어요. 이름이나 주소를 조금 더 자세히 입력해 보세요.</div>}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Map3D() {
   const [type, setType] = useState('12')
   const [sel, setSel] = useState(null)
+  const [found, setFound] = useState(null) // 검색해서 찾은 장소 (핀으로 함께 표시)
   const [view, setView] = useState('3d') // '3d' | 'map'
   const [exag, setExag] = useState(3) // 3D 고도 과장 배율
   const [wx, setWx] = useState('live') // 날씨 미리보기 모드
@@ -62,6 +115,15 @@ export default function Map3D() {
     data: usingFallback ? fallbackFor(type) : fetched.data,
     error: usingFallback ? null : fetched.error,
   }), [fetched, usingFallback, type])
+  const shown = useMemo(() => [...(spots.data ?? []), ...(found ? [found] : [])], [spots.data, found])
+  const onSearchPick = (r) => {
+    if (r.kind === 'clear') { setFound(null); setSel(null); return }
+    if (r.kind === 'local') { setSel(r.spot); return }
+    const p = r.place // 카카오 검색 결과 → 임시 핀 + 오른쪽 정보 패널
+    const f = { id: 'found', title: p.title, addr: p.addr, lat: p.lat, lng: p.lng, type: 'search', hub: true, url: p.url }
+    setFound(f)
+    setSel(f)
+  }
   const weather = useAsync(() => fetchWeather({ place: '제주시' }), [])
   // 지역별 현재 날씨 (제주시·서귀포시·성산·한림) — 일부가 실패해도 나머지는 표시
   const regions = useAsync(async () => (await Promise.all(WEATHER_REGIONS.map((r) =>
@@ -93,17 +155,18 @@ export default function Map3D() {
     <Container className="pt-3">
       <Row className="g-3">
         <Col lg={8}>
+          <MapSearch spots={spots.data} onPick={onSearchPick} />
           <div className="jp-map">
             <div className="jp-map-chips">
               {TYPES.map((t) => (
-                <button key={t} type="button" className={`jp-month ${type === t ? 'on' : ''}`} onClick={() => { setType(t); setSel(null) }}>
+                <button key={t} type="button" className={`jp-month ${type === t ? 'on' : ''}`} onClick={() => { setType(t); setSel(null); setFound(null) }}>
                   <i className={`bi bi-${TYPE_META[t].icon} me-1`} />{TYPE_META[t].label}
                 </button>
               ))}
             </div>
             {view === '3d'
-              ? <Jeju3D spots={spots.data ?? []} selectedId={sel?.id} onSelect={setSel} weather={effective} sun={sun} override={override} regional={showRegions ? regions.data ?? [] : []} exaggeration={exag} loc={loc} actionsClass="up" />
-              : <KakaoMap spots={[...(spots.data ?? []), ...mePin]} selectedId={sel?.id} onSelect={(s) => s?.id !== 'me' && setSel(s)} center={loc.me} />}
+              ? <Jeju3D spots={shown} selectedId={sel?.id} onSelect={setSel} weather={effective} sun={sun} override={override} regional={showRegions ? regions.data ?? [] : []} exaggeration={exag} loc={loc} actionsClass="up" />
+              : <KakaoMap spots={[...shown, ...mePin]} selectedId={sel?.id} onSelect={(s) => s?.id !== 'me' && setSel(s)} center={loc.me} />}
             {view === 'map' && <div className="jp-map-actions flat"><MyLocationButton loc={loc} /></div>}
             <div className="jp-map-hint">
               {view === '3d'
