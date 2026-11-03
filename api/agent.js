@@ -61,19 +61,34 @@ export default async function handler(req, res) {
   let route = null // propose_route 결과 — 화면에 코스로 표시
   const seen = new Set() // 같은 도구를 같은 인자로 또 부르지 않게
   const MAX_TURNS = 8
+  const MAX_TOKENS = 4096 // 장소가 많은 코스(propose_route)는 출력이 길어서 1200으로는 잘려 답이 비는 일이 있었다
+
+  // 도구 없이 지금까지 확인한 것으로 답을 마무리하는 호출 — 마지막 차례이거나, 모델이 글 없이 끝났을 때 쓴다
+  const finalize = async (why) => {
+    const nudge = { type: 'text', text: why }
+    const lastMsg = messages[messages.length - 1]
+    const base = messages.slice(0, -1)
+    const content = typeof lastMsg.content === 'string' ? [{ type: 'text', text: lastMsg.content }, nudge] : [...lastMsg.content, nudge]
+    const r2 = await client.messages.create({ model: MODEL, max_tokens: MAX_TOKENS, system: SYSTEM, tools, tool_choice: { type: 'none' }, messages: [...base, { ...lastMsg, role: 'user', content }] })
+    return r2.content.filter((b) => b.type === 'text').map((b) => b.text).join('\n').trim()
+  }
 
   try {
     // 에이전트 루프: 생각 → 도구 호출 → 결과 확인 → (반복) → 최종 답
     for (let turn = 0; turn < MAX_TURNS; turn++) {
       // 마지막 차례에는 도구를 못 쓰게 해서, 도구만 부르다 답 없이 끝나는 일을 막는다
       const last = turn === MAX_TURNS - 1
-      const r = await client.messages.create({ model: MODEL, max_tokens: 1200, system: SYSTEM, tools, ...(last ? { tool_choice: { type: 'none' } } : {}), messages })
+      const r = await client.messages.create({ model: MODEL, max_tokens: MAX_TOKENS, system: SYSTEM, tools, ...(last ? { tool_choice: { type: 'none' } } : {}), messages })
 
       if (r.stop_reason !== 'tool_use') {
-        const text = r.content.filter((b) => b.type === 'text').map((b) => b.text).join('\n').trim()
-        // 답 글자가 비어 있어도 화면이 비지 않게 한다
+        let text = r.content.filter((b) => b.type === 'text').map((b) => b.text).join('\n').trim()
+        // 글 없이 끝났는데 도구 결과가 있으면, 도구 없이 한 번 더 불러 답을 마무리한다
+        if (!text && steps.length) {
+          try { text = await finalize(route ? '코스를 이미 만들었으니 도구 없이 핵심 팁만 짧게 답하세요.' : '도구를 더 쓰지 말고, 지금까지 확인한 결과로 답하세요. 장소를 찾았다면 가까운 순서로 정리하고, 못 찾은 곳은 말로 안내하세요.') } catch { /* 아래 안내 문구로 대신한다 */ }
+        }
+        // 그래도 비어 있으면 화면이 비지 않게 안내 문구를 둔다
         const answer = text || (route ? '코스를 만들었어요. 아래 코스를 확인해 주세요.' : '답을 정리하지 못했어요. 위의 도구 결과를 참고하시거나 질문을 조금 바꿔 다시 물어봐 주세요.')
-        return res.status(200).json({ answer, steps, route, model: MODEL })
+        return res.status(200).json({ answer, steps, route, model: MODEL, stop: r.stop_reason })
       }
 
       messages.push({ role: 'assistant', content: r.content })
