@@ -12,6 +12,7 @@ import PhotoEditor from '../components/PhotoEditor'
 import { DEFAULT_EDIT } from '../lib/photoEdit'
 
 const MAX = 5
+const SAMPLES = ['jeju-beach', 'jeju-canola', 'jeju-lighthouse', 'jeju-haenyeo', 'jeju-night'] // public/images 의 제주 풍경 사진 (Pixabay 무료 이미지)
 const SLIDE_MS = 1500 // 한 장면에 머무는 시간 (1~2초)
 const IDLE_MS = 15 * 60e3 // 15분 동안 아무것도 안 하면 사진과 슬라이드를 지운다
 
@@ -91,6 +92,23 @@ export default function Album() {
     window.addEventListener('beforeunload', warn)
     return () => window.removeEventListener('beforeunload', warn)
   }, [items.length, downloaded])
+
+  // 내 사진이 없어도 써 볼 수 있게, 앱에 들어 있는 제주 풍경 사진으로 바로 시작한다 (직접 올린 사진처럼 같은 과정을 거친다)
+  const loadSamples = async () => {
+    setErr(''); setMsg('')
+    setBusy('load')
+    try {
+      const files = []
+      for (const n of SAMPLES.slice(0, MAX - items.length)) {
+        const blob = await (await fetch(`/images/${n}.jpg`)).blob()
+        files.push(new File([blob], `${n}.jpg`, { type: 'image/jpeg' }))
+      }
+      if (!files.length) return setErr(`사진은 최대 ${MAX}장까지예요.`)
+      setBusy('')
+      await addFiles(files)
+      setMsg('샘플 제주 풍경 사진을 담았어요. 사진을 다듬거나 AI 문구를 만들고, 앨범과 영상으로 내려받아 보세요.')
+    } catch { setErr('샘플 사진을 불러오지 못했어요') } finally { setBusy('') }
+  }
 
   const addFiles = async (files) => {
     setErr(''); setMsg('')
@@ -215,6 +233,12 @@ export default function Album() {
           <div className="jp-eyebrow mb-1">1. 사진 고르기 ({items.length}/{MAX})</div>
           <input type="file" accept="image/*" multiple className="form-control" disabled={busy === 'load' || items.length >= MAX}
             onChange={(e) => { addFiles(e.target.files); e.target.value = '' }} aria-label="사진 고르기" />
+          {items.length === 0 && (
+            <div className="d-flex flex-wrap align-items-center gap-2 mt-2">
+              <button type="button" className="btn btn-sm btn-outline-sea" onClick={loadSamples} disabled={busy !== ''}><i className="bi bi-images me-1" />샘플 사진으로 체험하기</button>
+              <span className="small text-muted">내 사진이 없어도 제주 풍경 샘플 5장으로 바로 써 볼 수 있어요</span>
+            </div>
+          )}
           {busy === 'load' && <div className="small text-muted mt-2"><span className="spinner-border spinner-border-sm me-2" />사진을 줄이는 중…</div>}
           {items.length > 0 && (
             <div className="d-grid gap-2 mt-3">
