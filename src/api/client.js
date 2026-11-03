@@ -19,10 +19,8 @@ export const post = (path, body) =>
 // 공공데이터 API
 export const fetchPhotos = (keyword = '', rows = 12) => get('/api/photos', { keyword, rows })          // search_photos
 export const fetchPhotoInfo = ({ id, title, location }) => get('/api/photo', { id, title, location })   // get_photo_info
-// 좌표는 소수점을 줄여(약 100m) 보내서, 같은 동네의 요청이 같은 주소가 되어 서버 캐시를 함께 쓴다 (공공데이터 일일 호출 한도 절약)
-const rd = (v, d) => (v === undefined || v === null || v === '' || Number.isNaN(Number(v)) ? v : Math.round(Number(v) * 10 ** d) / 10 ** d)
-export const fetchNearby = ({ lat, lng, radius = 3000, type, exclude }) => get('/api/nearby', { lat: rd(lat, 3), lng: rd(lng, 3), radius, type, exclude }) // find_nearby
-export const fetchWeather = ({ place, lat, lng } = {}) => get('/api/weather', { place, lat: rd(lat, 2), lng: rd(lng, 2) }) // 기상청 격자는 5km 라서 소수점 2자리면 충분
+export const fetchNearby = ({ lat, lng, radius = 3000, type, exclude }) => get('/api/nearby', { lat, lng, radius, type, exclude }) // find_nearby
+export const fetchWeather = ({ place, lat, lng } = {}) => get('/api/weather', { place, lat, lng })
 export const fetchSpots = (type = '12', page, rows) => get('/api/spots', { type, page, rows })
 export const fetchAccess = ({ contentId, name }) => get('/api/place', { kind: 'access', contentId, name })
 export const fetchRelated = ({ name, addr }) => get('/api/place', { kind: 'related', name, addr })

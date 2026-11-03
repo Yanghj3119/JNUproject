@@ -15,4 +15,4 @@ export default route((q) => {
   const fn = KINDS[q.kind]
   if (!fn) throw new Error(`kind 는 ${Object.keys(KINDS).join(' | ')} 중 하나`)
   return fn(q)
-}, { ttl: 86400 })
+}, { ttl: 3600 })
