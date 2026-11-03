@@ -1,24 +1,66 @@
 // 미니앨범 페이지 그리기 — 템플릿마다 1920x1080 한 장씩 캔버스에 그린다.
-// 미리보기와 PPT 가 같은 그림을 쓰기 때문에 보이는 모습이 똑같고, 모두 이 브라우저 안에서만 처리된다.
+// 사진은 자르지 않고 비율 그대로 넣고(세로 사진은 액자 모양을 바꾸거나 두 장을 한 페이지에), 미리보기와 PPT 가 같은 그림을 쓴다.
+// 모두 이 브라우저 안에서만 처리된다.
 export const W = 1920
 export const H = 1080
-const SERIF = '"Batang", "AppleMyungjo", "Noto Serif KR", "Nanum Myeongjo", serif'
-const SANS = '"Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif'
+
+// 글꼴: 웹폰트를 먼저 불러 와서 어느 기기에서 만들어도 같은 모양이 나오게 한다 (실패하면 시스템 글꼴로 대신한다)
+const SERIF = '"Nanum Myeongjo", "Batang", "AppleMyungjo", "Noto Serif KR", serif'
+const HAND = '"Nanum Pen Script", "Nanum Myeongjo", "Batang", "AppleMyungjo", serif'
+const SANS = '"Pretendard Variable", "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif'
 const MONO = '"Consolas", "Menlo", "Courier New", monospace'
+const FONT_CSS = 'https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700&family=Nanum+Pen+Script&display=swap'
+
+let fontLink = null
+async function ensureFonts(texts) {
+  if (typeof document === 'undefined') return
+  if (!fontLink) {
+    fontLink = new Promise((resolve) => {
+      const l = document.createElement('link')
+      l.rel = 'stylesheet'
+      l.href = FONT_CSS
+      l.onload = resolve
+      l.onerror = resolve
+      document.head.appendChild(l)
+      setTimeout(resolve, 5000)
+    })
+  }
+  await fontLink
+  const sample = [...new Set(texts.join('') + '0123456789.-·/')].join('')
+  const faces = ['400 40px "Nanum Myeongjo"', '700 40px "Nanum Myeongjo"', '400 40px "Nanum Pen Script"', '400 40px "Pretendard Variable"', '700 40px "Pretendard Variable"']
+  await Promise.all(faces.map((f) => document.fonts.load(f, sample).catch(() => null)))
+}
 
 const loadImg = (src) => new Promise((resolve) => { const im = new Image(); im.onload = () => resolve(im); im.onerror = () => resolve(null); im.src = src })
 const pad2 = (n) => String(n).padStart(2, '0')
 const rng = (seed) => { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296 } }
 
-function cover(ctx, im, x, y, w, h) {
-  if (!im) { ctx.fillStyle = '#888'; ctx.fillRect(x, y, w, h); return }
-  const r = Math.max(w / im.width, h / im.height)
-  const sw = w / r
-  const sh = h / r
-  ctx.drawImage(im, (im.width - sw) / 2, (im.height - sh) / 2, sw, sh, x, y, w, h)
+// 사진을 자르지 않고 maxW x maxH 안에 비율 그대로 맞춘 크기
+function fit(im, maxW, maxH) {
+  if (!im) return { w: maxW, h: maxH }
+  const r = Math.min(maxW / im.width, maxH / im.height)
+  return { w: Math.round(im.width * r), h: Math.round(im.height * r) }
+}
+const portrait = (im) => Boolean(im) && im.height / im.width > 1.12
+// 칸 전체를 채워야 할 때(필름 컷·시네마틱): 사진을 흐리게 깔고 그 위에 사진 전체를 올린다
+function coverBlur(ctx, im, x, y, w, h) {
+  ctx.save()
+  ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip()
+  if (im) {
+    const r = Math.max(w / im.width, h / im.height)
+    const sw = w / r
+    const sh = h / r
+    try { ctx.filter = 'blur(28px) brightness(0.7)' } catch { /* 필터를 못 쓰는 브라우저 */ }
+    ctx.drawImage(im, (im.width - sw) / 2, (im.height - sh) / 2, sw, sh, x - 40, y - 40, w + 80, h + 80)
+    ctx.filter = 'none'
+  } else { ctx.fillStyle = '#222'; ctx.fillRect(x, y, w, h) }
+  ctx.restore()
+  const f = fit(im, w, h)
+  if (im) ctx.drawImage(im, x + (w - f.w) / 2, y + (h - f.h) / 2, f.w, f.h)
+  return f
 }
 
-// 글자를 maxW 안에서 줄바꿈 (공백이 있으면 단어, 없으면 글자 단위)
+// 글자를 maxW 안에서 줄바꿈 (글자 단위)
 function wrap(ctx, text, maxW, maxLines = 3) {
   const out = []
   let line = ''
@@ -30,7 +72,7 @@ function wrap(ctx, text, maxW, maxLines = 3) {
   if (line.trim() && out.length < maxLines) out.push(line.trim())
   return out
 }
-// 글 덩어리의 세로 가운데가 cy 가 되게 그린다 (textBaseline 은 middle 로 맞춘다)
+// 글 덩어리의 세로 가운데가 cy 가 되게 그린다
 function centerBlock(ctx, text, cx, cy, maxW, lineH, maxLines = 2) {
   ctx.textBaseline = 'middle'
   ctx.textAlign = 'center'
@@ -39,13 +81,13 @@ function centerBlock(ctx, text, cx, cy, maxW, lineH, maxLines = 2) {
   lines.forEach((l, i) => ctx.fillText(l, cx, y0 + i * lineH))
   return lines.length
 }
-function centerText(ctx, text, cx, y, maxW, lineH, maxLines = 3) {
-  const lines = wrap(ctx, text, maxW, maxLines)
-  lines.forEach((l, i) => ctx.fillText(l, cx, y + i * lineH))
-  return lines.length
+function leftBlock(ctx, text, x, y, maxW, lineH, maxLines = 3) {
+  ctx.textAlign = 'left'
+  ctx.textBaseline = 'alphabetic'
+  wrap(ctx, text, maxW, maxLines).forEach((l, i) => ctx.fillText(l, x, y + i * lineH))
 }
 
-// 종이 바탕 + 은은한 결(점·섬유)
+// 종이 바탕 + 은은한 결
 function paper(ctx, c1, c2, grain = 0.06, seed = 3, fiber = false) {
   const g = ctx.createLinearGradient(0, 0, W, H)
   g.addColorStop(0, c1)
@@ -103,8 +145,28 @@ function star(ctx, cx, cy, r, color, rot = 0) {
   ctx.restore()
 }
 
+// 페이지 아래의 한 줄 정보 (장소 · 날짜)
+const infoOf = (it, date) => [it?.place, it?.date || date].filter(Boolean).join('  ·  ')
+
+// 페이지 아래 작은 안내: 왼쪽 번호, 오른쪽 장소·날짜
+function footer(ctx, p, color) {
+  ctx.fillStyle = color
+  ctx.globalAlpha = 0.65
+  ctx.font = `28px ${MONO}`
+  ctx.textBaseline = 'alphabetic'
+  ctx.textAlign = 'left'
+  ctx.fillText(`No. ${pad2(p.index + 1)}${p.type === 'pair' ? `-${pad2(p.index + 2)}` : ''} / ${pad2(p.total)}`, 130, H - 70)
+  ctx.textAlign = 'right'
+  ctx.fillText(p.info || p.date, W - 130, H - 70)
+  ctx.globalAlpha = 1
+}
+
 // ── 폴라로이드 ────────────────────────────────────────────────
-function polaroidCard(ctx, im, cx, cy, rot, cw, ch, pad, photoH, caption, capFont = 44) {
+// 사진 비율대로 카드 크기가 정해진다 (사진 위쪽·옆 여백 pad, 아래쪽 글 영역 capH)
+function polaroidCard(ctx, im, cx, cy, rot, maxW, maxH, pad, caption, capFont = 58, capH = 150) {
+  const { w: pw, h: ph } = fit(im, maxW, maxH)
+  const cw = pw + pad * 2
+  const ch = ph + pad + capH
   ctx.save()
   ctx.translate(cx, cy)
   ctx.rotate(rot)
@@ -114,19 +176,17 @@ function polaroidCard(ctx, im, cx, cy, rot, cw, ch, pad, photoH, caption, capFon
   shadowOff(ctx)
   const px = -cw / 2 + pad
   const py = -ch / 2 + pad
-  cover(ctx, im, px, py, cw - pad * 2, photoH)
+  if (im) ctx.drawImage(im, px, py, pw, ph)
   ctx.strokeStyle = 'rgba(0,0,0,0.14)'
   ctx.lineWidth = 2
-  ctx.strokeRect(px, py, cw - pad * 2, photoH)
+  ctx.strokeRect(px, py, pw, ph)
   if (caption) {
     ctx.fillStyle = '#3a2f22'
-    ctx.font = `italic ${capFont}px ${SERIF}`
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    const y0 = py + photoH
-    centerBlock(ctx, caption, 0, y0 + (ch / 2 - y0) / 2, cw - pad * 2 - 20, capFont * 1.3, 2)
+    ctx.font = `${capFont}px ${HAND}`
+    centerBlock(ctx, caption, 0, py + ph + capH / 2, cw - pad * 2 - 20, capFont * 1.15, 2)
   }
   ctx.restore()
+  return { cw, ch }
 }
 
 function drawPolaroid(ctx, p) {
@@ -134,20 +194,18 @@ function drawPolaroid(ctx, p) {
   ctx.textBaseline = 'alphabetic'
   if (p.type === 'cover') {
     const [a, b] = p.images
-    if (b) polaroidCard(ctx, b, 1450, 520, 0.1, 640, 700, 30, 480, '', 36)
-    polaroidCard(ctx, a, 1330, 560, -0.07, 700, 780, 34, 540, '', 36)
+    if (b) polaroidCard(ctx, b, 1480, 520, 0.1, 440, 520, 30, '', 36, 90)
+    polaroidCard(ctx, a, 1330, 560, -0.07, 560, 600, 34, '', 36, 100)
     ctx.fillStyle = '#3a2f22'
     ctx.textAlign = 'left'
     ctx.font = `italic 34px ${SERIF}`
     ctx.fillText('— Jeju Photo Album —', 150, 330)
     ctx.font = `bold 92px ${SERIF}`
-    ctx.textBaseline = 'top'
     const n = wrap(ctx, p.title, 780, 2)
-    n.forEach((l, i) => ctx.fillText(l, 150, 370 + i * 112))
-    ctx.textBaseline = 'alphabetic'
+    n.forEach((l, i) => ctx.fillText(l, 150, 450 + i * 112))
     ctx.font = `38px ${SERIF}`
     ctx.fillStyle = 'rgba(58,47,34,0.8)'
-    centerLeft(ctx, p.subtitle, 150, 400 + n.length * 112, 780, 52)
+    leftBlock(ctx, p.subtitle, 150, 480 + n.length * 112, 780, 52, 3)
     ctx.font = `30px ${MONO}`
     ctx.fillStyle = 'rgba(58,47,34,0.6)'
     ctx.fillText(p.date, 150, H - 120)
@@ -159,40 +217,39 @@ function drawPolaroid(ctx, p) {
     ctx.font = `italic 56px ${SERIF}`
     ctx.fillText('Our Jeju Days', W / 2, 170)
     const n = p.images.length
-    const cw = Math.min(330, (W - 200) / n - 30)
+    const box = Math.min(300, (W - 240) / n - 40)
     p.images.forEach((im, i) => {
-      const cx = W / 2 + (i - (n - 1) / 2) * (cw + 36)
-      polaroidCard(ctx, im, cx, 560 + (i % 2 ? 40 : -20), (i % 2 ? 1 : -1) * 0.04, cw, cw * 1.18, 20, cw - 40, '', 30)
+      const cx = W / 2 + (i - (n - 1) / 2) * (box + 60)
+      polaroidCard(ctx, im, cx, 560 + (i % 2 ? 40 : -20), (i % 2 ? 1 : -1) * 0.04, box, box, 20, '', 30, 70)
       ctx.fillStyle = 'rgba(58,47,34,0.7)'
       ctx.font = `28px ${MONO}`
       ctx.textAlign = 'center'
-      ctx.fillText(pad2(i + 1), cx, 560 + cw * 0.59 + 90)
+      ctx.fillText(pad2(i + 1), cx, 560 + box / 2 + 120)
     })
     ctx.font = `32px ${SERIF}`
     ctx.fillStyle = 'rgba(58,47,34,0.75)'
     ctx.fillText(`${p.title}  ·  ${p.date}`, W / 2, H - 110)
     return
   }
-  // 사진 한 장
+  if (p.type === 'pair') {
+    const [a, b] = p.items
+    const ra = -0.04, rb = 0.035
+    polaroidCard(ctx, p.ims[0], W / 2 - 330, H / 2 - 20, ra, 520, 620, 34, a.caption, 54, 140)
+    polaroidCard(ctx, p.ims[1], W / 2 + 330, H / 2 - 10, rb, 520, 620, 34, b.caption, 54, 140)
+    ctx.save(); ctx.translate(W / 2 - 330, H / 2 - 20); ctx.rotate(ra); tape(ctx, 0, -435, 170, 50, -0.3, 'rgba(250,215,120,0.78)'); ctx.restore()
+    ctx.save(); ctx.translate(W / 2 + 330, H / 2 - 10); ctx.rotate(rb); tape(ctx, 0, -435, 170, 50, 0.3, 'rgba(250,215,120,0.78)'); ctx.restore()
+    footer(ctx, p, '#3a2f22')
+    return
+  }
   const rot = (p.index % 2 ? 1 : -1) * 0.035
-  polaroidCard(ctx, p.im, W / 2, H / 2 - 10, rot, 900, 900, 40, 660, p.caption, 46)
+  const { ch } = polaroidCard(ctx, p.im, W / 2, H / 2 - 10, rot, 880, 640, 40, p.item.caption, 62, 170)
   ctx.save()
   ctx.translate(W / 2, H / 2 - 10)
   ctx.rotate(rot)
-  tape(ctx, -330, -450, 190, 56, -0.35, 'rgba(250,215,120,0.78)')
-  tape(ctx, 330, -450, 190, 56, 0.3, 'rgba(250,215,120,0.78)')
+  tape(ctx, -260, -ch / 2, 190, 56, -0.35, 'rgba(250,215,120,0.78)')
+  tape(ctx, 260, -ch / 2, 190, 56, 0.3, 'rgba(250,215,120,0.78)')
   ctx.restore()
-  ctx.fillStyle = 'rgba(58,47,34,0.65)'
-  ctx.font = `30px ${MONO}`
-  ctx.textAlign = 'left'
-  ctx.fillText(`No. ${pad2(p.index + 1)} / ${pad2(p.total)}`, 130, H - 80)
-  ctx.textAlign = 'right'
-  ctx.fillText(p.date, W - 130, H - 80)
-}
-
-function centerLeft(ctx, text, x, y, maxW, lineH) {
-  ctx.textAlign = 'left'
-  wrap(ctx, text, maxW, 3).forEach((l, i) => ctx.fillText(l, x, y + i * lineH))
+  footer(ctx, p, '#3a2f22')
 }
 
 // ── 필름 ────────────────────────────────────────────────────
@@ -206,6 +263,19 @@ function filmStrip(ctx, y) {
     ctx.fill()
   }
 }
+function filmCut(ctx, im, x, y, w, h) {
+  ctx.fillStyle = '#000'
+  ctx.fillRect(x - 12, y - 12, w + 24, h + 24)
+  ctx.save()
+  try { ctx.filter = 'sepia(0.2) contrast(1.05) saturate(1.1)' } catch { /* 필터를 못 쓰는 브라우저 */ }
+  coverBlur(ctx, im, x, y, w, h)
+  ctx.restore()
+  const vg = ctx.createRadialGradient(x + w / 2, y + h / 2, h * 0.35, x + w / 2, y + h / 2, Math.max(w, h) * 0.7)
+  vg.addColorStop(0, 'rgba(0,0,0,0)')
+  vg.addColorStop(1, 'rgba(0,0,0,0.3)')
+  ctx.fillStyle = vg
+  ctx.fillRect(x, y, w, h)
+}
 function drawFilm(ctx, p) {
   const g = ctx.createLinearGradient(0, 0, 0, H)
   g.addColorStop(0, '#0f0f12')
@@ -217,13 +287,11 @@ function drawFilm(ctx, p) {
   const ORANGE = '#ffb02e'
   ctx.textBaseline = 'alphabetic'
   if (p.type === 'cover') {
-    // 아래쪽에 필름 컷 3장
-    const imgs = p.images.slice(0, 3)
-    imgs.forEach((im, i) => {
+    p.images.slice(0, 3).forEach((im, i) => {
       const x = 330 + i * 430
       ctx.fillStyle = '#000'
       ctx.fillRect(x - 8, 640, 396, 290)
-      cover(ctx, im, x, 648, 380, 274)
+      coverBlur(ctx, im, x, 648, 380, 274)
       ctx.fillStyle = ORANGE
       ctx.font = `22px ${MONO}`
       ctx.textAlign = 'left'
@@ -235,13 +303,14 @@ function drawFilm(ctx, p) {
     ctx.fillText('JEJU  400   ▸ ▸ ▸   36 EXP', W / 2, 220)
     ctx.fillStyle = '#fff'
     ctx.font = `bold 110px ${SANS}`
-    centerText(ctx, p.title, W / 2, 360, W - 400, 130, 2)
+    centerBlock(ctx, p.title, W / 2, 330, W - 400, 130, 2)
     ctx.fillStyle = 'rgba(255,255,255,0.78)'
     ctx.font = `40px ${SANS}`
-    centerText(ctx, p.subtitle, W / 2, 520, W - 500, 54, 2)
+    centerBlock(ctx, p.subtitle, W / 2, 500, W - 500, 54, 2)
     ctx.fillStyle = ORANGE
     ctx.font = `28px ${MONO}`
-    ctx.fillText(p.date, W / 2, 600)
+    ctx.textBaseline = 'alphabetic'
+    ctx.fillText(p.date, W / 2, 596)
     return
   }
   if (p.type === 'index') {
@@ -255,7 +324,7 @@ function drawFilm(ctx, p) {
       const x = W / 2 + (i - (n - 1) / 2) * (cw + 22) - cw / 2
       ctx.fillStyle = '#000'
       ctx.fillRect(x - 8, 300, cw + 16, cw * 0.75 + 16)
-      cover(ctx, im, x, 308, cw, cw * 0.75)
+      coverBlur(ctx, im, x, 308, cw, cw * 0.75)
       ctx.fillStyle = ORANGE
       ctx.font = `24px ${MONO}`
       ctx.textAlign = 'left'
@@ -267,30 +336,41 @@ function drawFilm(ctx, p) {
     ctx.fillText(`${p.title}  ·  ${p.date}`, W / 2, H - 160)
     return
   }
-  // 사진 한 컷
-  const x = 220, y = 112, w = 1480, h = 722
-  ctx.fillStyle = '#000'
-  ctx.fillRect(x - 12, y - 12, w + 24, h + 24)
-  ctx.save()
-  try { ctx.filter = 'sepia(0.22) contrast(1.06) saturate(1.1)' } catch { /* 필터를 못 쓰는 브라우저 */ }
-  cover(ctx, p.im, x, y, w, h)
-  ctx.restore()
-  const vg = ctx.createRadialGradient(W / 2, y + h / 2, h * 0.35, W / 2, y + h / 2, h * 0.95)
-  vg.addColorStop(0, 'rgba(0,0,0,0)')
-  vg.addColorStop(1, 'rgba(0,0,0,0.35)')
-  ctx.fillStyle = vg
-  ctx.fillRect(x, y, w, h)
+  const labelY = 112 + 722 + 56
+  if (p.type === 'pair') {
+    const xs = [150, 1000]
+    p.ims.forEach((im, i) => {
+      filmCut(ctx, im, xs[i], 112, 770, 722)
+      ctx.fillStyle = ORANGE
+      ctx.font = `26px ${MONO}`
+      ctx.textAlign = 'left'
+      ctx.textBaseline = 'alphabetic'
+      ctx.fillText(`▶ ${p.index + i + 1}`, xs[i], labelY)
+      if (p.items[i].caption) {
+        ctx.fillStyle = '#fff'
+        ctx.font = `36px ${SANS}`
+        centerBlock(ctx, p.items[i].caption, xs[i] + 385, H - 128, 740, 46, 1)
+      }
+    })
+    ctx.fillStyle = ORANGE
+    ctx.font = `24px ${MONO}`
+    ctx.textAlign = 'right'
+    ctx.textBaseline = 'alphabetic'
+    ctx.fillText(p.info || 'JEJU 400', 1770, labelY)
+    return
+  }
+  filmCut(ctx, p.im, 220, 112, 1480, 722)
   ctx.fillStyle = ORANGE
   ctx.font = `26px ${MONO}`
+  ctx.textBaseline = 'alphabetic'
   ctx.textAlign = 'left'
-  ctx.fillText(`▶ ${p.index + 1}`, x, y + h + 56)
+  ctx.fillText(`▶ ${p.index + 1}`, 220, labelY)
   ctx.textAlign = 'right'
-  ctx.fillText(`${p.index + 1}A   JEJU 400`, x + w, y + h + 56)
-  if (p.caption) {
-    ctx.textAlign = 'center'
+  ctx.fillText(`${p.info ? `${p.info}   ` : ''}${p.index + 1}A   JEJU 400`, 1700, labelY)
+  if (p.item.caption) {
     ctx.fillStyle = '#fff'
-    ctx.font = `40px ${SANS}`
-    centerBlock(ctx, p.caption, W / 2, H - 128, w, 50, 1)
+    ctx.font = `42px ${SANS}`
+    centerBlock(ctx, p.item.caption, W / 2, H - 128, 1480, 52, 1)
   }
 }
 
@@ -304,7 +384,7 @@ function scrapDecor(ctx, seed, avoid) {
     star(ctx, x, y, 16 + r() * 16, colors[i % colors.length], r() * 1.2)
   }
 }
-function stamp(ctx, cx, cy, date) {
+function stamp(ctx, cx, cy, date, place) {
   ctx.save()
   ctx.translate(cx, cy)
   ctx.rotate(-0.2)
@@ -315,13 +395,15 @@ function stamp(ctx, cx, cy, date) {
   ctx.beginPath(); ctx.arc(0, 0, 72, 0, Math.PI * 2); ctx.stroke()
   ctx.fillStyle = 'rgba(120,70,35,0.8)'
   ctx.textAlign = 'center'
-  ctx.font = `bold 30px ${MONO}`
-  ctx.fillText('JEJU', 0, -4)
+  ctx.textBaseline = 'alphabetic'
+  ctx.font = `bold ${place ? 24 : 30}px ${SANS}`
+  ctx.fillText((place || 'JEJU').slice(0, 7), 0, -4)
   ctx.font = `20px ${MONO}`
   ctx.fillText(date, 0, 28)
   ctx.restore()
 }
-function whiteFrame(ctx, im, cx, cy, rot, w, h, border) {
+function whiteFrame(ctx, im, cx, cy, rot, maxW, maxH, border) {
+  const { w, h } = fit(im, maxW, maxH)
   ctx.save()
   ctx.translate(cx, cy)
   ctx.rotate(rot)
@@ -329,10 +411,11 @@ function whiteFrame(ctx, im, cx, cy, rot, w, h, border) {
   ctx.fillStyle = '#fffdf7'
   ctx.fillRect(-w / 2 - border, -h / 2 - border, w + border * 2, h + border * 2)
   shadowOff(ctx)
-  cover(ctx, im, -w / 2, -h / 2, w, h)
+  if (im) ctx.drawImage(im, -w / 2, -h / 2, w, h)
   ctx.restore()
+  return { w, h }
 }
-function label(ctx, cx, cy, rot, w, h, text, font = 42) {
+function label(ctx, cx, cy, rot, w, h, text, font = 58) {
   ctx.save()
   ctx.translate(cx, cy)
   ctx.rotate(rot)
@@ -346,26 +429,24 @@ function label(ctx, cx, cy, rot, w, h, text, font = 42) {
   ctx.strokeRect(-w / 2 + 12, -h / 2 + 12, w - 24, h - 24)
   ctx.setLineDash([])
   ctx.fillStyle = '#4a3320'
-  ctx.font = `italic ${font}px ${SERIF}`
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  centerBlock(ctx, text, 0, 0, w - 70, font * 1.3, 2)
+  ctx.font = `${font}px ${HAND}`
+  centerBlock(ctx, text, 0, 0, w - 70, font * 1.15, 2)
   ctx.restore()
 }
+const lastWord = (s) => (s ? String(s).split(' ').slice(-1)[0] : '')
 function drawScrap(ctx, p) {
   paper(ctx, '#cfa977', '#b98d5a', 0.08, 11, true)
   ctx.textBaseline = 'alphabetic'
   if (p.type === 'cover') {
     const imgs = p.images.slice(0, 3)
     const pos = [[1330, 470, -0.07], [1560, 640, 0.08], [1180, 700, 0.03]]
-    imgs.forEach((im, i) => whiteFrame(ctx, im, pos[i][0], pos[i][1], pos[i][2], 380, 280, 18))
+    imgs.forEach((im, i) => whiteFrame(ctx, im, pos[i][0], pos[i][1], pos[i][2], 380, 300, 18))
     tape(ctx, 1330, 300, 170, 50, -0.3, 'rgba(244,114,182,0.7)')
-    label(ctx, 560, 470, -0.03, 820, 360, p.title, 76)
+    label(ctx, 560, 470, -0.03, 820, 360, p.title, 92)
     ctx.fillStyle = '#4a3320'
-    ctx.font = `36px ${SERIF}`
-    ctx.textAlign = 'center'
-    centerText(ctx, p.subtitle, 560, 740, 760, 48, 2)
-    stamp(ctx, 220, 220, p.date)
+    ctx.font = `38px ${SERIF}`
+    centerBlock(ctx, p.subtitle, 560, 760, 760, 48, 2)
+    stamp(ctx, 220, 220, p.date, '')
     scrapDecor(ctx, 5, [100, 200, 1000, 800])
     return
   }
@@ -377,23 +458,35 @@ function drawScrap(ctx, p) {
     const n = p.images.length
     p.images.forEach((im, i) => {
       const cx = W / 2 + (i - (n - 1) / 2) * 330
-      whiteFrame(ctx, im, cx, 560 + (i % 2 ? 50 : -30), (i % 2 ? 1 : -1) * 0.05, 270, 200, 14)
-      tape(ctx, cx, 560 + (i % 2 ? 50 : -30) - 130, 120, 38, (i % 2 ? 0.3 : -0.3), i % 2 ? 'rgba(45,212,191,0.7)' : 'rgba(244,114,182,0.7)')
+      const cy = 560 + (i % 2 ? 50 : -30)
+      const f = whiteFrame(ctx, im, cx, cy, (i % 2 ? 1 : -1) * 0.05, 270, 240, 14)
+      tape(ctx, cx, cy - f.h / 2 - 20, 120, 38, (i % 2 ? 0.3 : -0.3), i % 2 ? 'rgba(45,212,191,0.7)' : 'rgba(244,114,182,0.7)')
     })
-    stamp(ctx, W - 230, H - 190, p.date)
+    stamp(ctx, W - 230, H - 190, p.date, '')
     scrapDecor(ctx, 9, [200, 300, 1700, 850])
     return
   }
+  if (p.type === 'pair') {
+    const rots = [-0.04, 0.035]
+    p.ims.forEach((im, i) => {
+      const cx = W / 2 + (i ? 330 : -330)
+      const f = whiteFrame(ctx, im, cx, 450, rots[i], 520, 600, 24)
+      tape(ctx, cx - 120, 450 - f.h / 2 - 24, 170, 50, -0.4, 'rgba(244,114,182,0.72)')
+      tape(ctx, cx + 120, 450 - f.h / 2 - 24, 170, 50, 0.35, 'rgba(45,212,191,0.72)')
+      if (p.items[i].caption) label(ctx, cx, 450 + f.h / 2 + 90, -rots[i] / 2, 520, 120, p.items[i].caption, 46)
+    })
+    stamp(ctx, 1740, 160, p.date, lastWord(p.items[0].place))
+    footer(ctx, p, 'rgba(74,51,32,1)')
+    scrapDecor(ctx, 30 + p.index, [200, 100, 1720, 960])
+    return
+  }
   const rot = (p.index % 2 ? 1 : -1) * 0.03
-  whiteFrame(ctx, p.im, 900, 500, rot, 1000, 660, 28)
-  tape(ctx, 560, 150, 190, 54, -0.4, 'rgba(244,114,182,0.72)')
-  tape(ctx, 1250, 160, 190, 54, 0.35, 'rgba(45,212,191,0.72)')
-  if (p.caption) label(ctx, 1210, 900, 0.025 * (p.index % 2 ? -1 : 1), 880, 150, p.caption, 42)
-  stamp(ctx, 1700, 230, p.date)
-  ctx.fillStyle = 'rgba(74,51,32,0.75)'
-  ctx.font = `28px ${MONO}`
-  ctx.textAlign = 'left'
-  ctx.fillText(`#${pad2(p.index + 1)}  /  ${pad2(p.total)}`, 120, H - 70)
+  const f = whiteFrame(ctx, p.im, 900, 480, rot, 1000, 640, 28)
+  tape(ctx, 900 - f.w / 2 + 40, 480 - f.h / 2 - 30, 190, 54, -0.4, 'rgba(244,114,182,0.72)')
+  tape(ctx, 900 + f.w / 2 - 40, 480 - f.h / 2 - 20, 190, 54, 0.35, 'rgba(45,212,191,0.72)')
+  if (p.item.caption) label(ctx, 1200, 480 + f.h / 2 + 100, 0.025 * (p.index % 2 ? -1 : 1), 880, 150, p.item.caption, 62)
+  stamp(ctx, 1700, 230, p.date, lastWord(p.item.place))
+  footer(ctx, p, 'rgba(74,51,32,1)')
   scrapDecor(ctx, 20 + p.index, [260, 80, 1560, 960])
 }
 
@@ -410,7 +503,8 @@ function wall(ctx) {
   ctx.fillStyle = s
   ctx.fillRect(0, 0, W, H)
 }
-function frame(ctx, im, cx, cy, w, h, mat = 70) {
+function frame(ctx, im, cx, cy, maxW, maxH, mat = 70) {
+  const { w, h } = fit(im, maxW, maxH)
   const fw = w + mat * 2
   const fh = h + mat * 2
   ctx.save()
@@ -420,13 +514,14 @@ function frame(ctx, im, cx, cy, w, h, mat = 70) {
   shadowOff(ctx)
   ctx.fillStyle = '#fbfaf7'
   ctx.fillRect(cx - fw / 2, cy - fh / 2, fw, fh)
-  cover(ctx, im, cx - w / 2, cy - h / 2, w, h)
+  if (im) ctx.drawImage(im, cx - w / 2, cy - h / 2, w, h)
   ctx.strokeStyle = 'rgba(0,0,0,0.2)'
   ctx.lineWidth = 2
   ctx.strokeRect(cx - w / 2, cy - h / 2, w, h)
   ctx.restore()
+  return { w, h, fh }
 }
-function plaque(ctx, cx, cy, w, h, line1, line2) {
+function plaque(ctx, cx, cy, w, h, line1, line2, f1 = 34) {
   ctx.save()
   shadowOn(ctx, 16, 6, 0.25)
   ctx.fillStyle = '#fffefb'
@@ -436,17 +531,16 @@ function plaque(ctx, cx, cy, w, h, line1, line2) {
   ctx.lineWidth = 2
   ctx.strokeRect(cx - w / 2 + 8, cy - h / 2 + 8, w - 16, h - 16)
   ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
   ctx.fillStyle = '#26211b'
-  ctx.font = `bold 34px ${SERIF}`
-  ctx.font = `bold 34px ${SERIF}`
+  ctx.font = `bold ${f1}px ${SERIF}`
   const nl = Math.min(2, wrap(ctx, line1 || '', w - 70, 2).length)
-  const blockH = nl * 42 + (line2 ? 36 : 0)
-  centerBlock(ctx, line1 || '', cx, cy - blockH / 2 + (nl * 42) / 2, w - 70, 42, 2)
+  const blockH = nl * (f1 + 8) + (line2 ? 36 : 0)
+  centerBlock(ctx, line1 || '', cx, cy - blockH / 2 + (nl * (f1 + 8)) / 2, w - 70, f1 + 8, 2)
   if (line2) {
     ctx.fillStyle = '#7a7266'
     ctx.font = `22px ${SERIF}`
-    ctx.fillText(line2, cx, cy - blockH / 2 + nl * 42 + 18)
+    ctx.textBaseline = 'middle'
+    ctx.fillText(line2, cx, cy - blockH / 2 + nl * (f1 + 8) + 18)
   }
   ctx.restore()
 }
@@ -454,47 +548,64 @@ function drawGallery(ctx, p) {
   wall(ctx)
   ctx.textBaseline = 'alphabetic'
   if (p.type === 'cover') {
-    const imgs = p.images.slice(0, 3)
     const xs = [380, 960, 1540]
-    imgs.forEach((im, i) => frame(ctx, im, xs[i], 360, 330, 230, 34))
+    p.images.slice(0, 3).forEach((im, i) => frame(ctx, im, xs[i], 360, 330, 250, 34))
     plaque(ctx, W / 2, 800, 900, 210, p.title, p.subtitle || p.date)
     ctx.fillStyle = '#7a7266'
     ctx.font = `24px ${SERIF}`
     ctx.textAlign = 'center'
+    ctx.textBaseline = 'alphabetic'
     ctx.fillText(`JEJU PHOTO EXHIBITION  ·  ${p.date}`, W / 2, 970)
     return
   }
   if (p.type === 'index') {
     const n = p.images.length
-    p.images.forEach((im, i) => frame(ctx, im, W / 2 + (i - (n - 1) / 2) * 360, 470, 250, 190, 28))
+    p.images.forEach((im, i) => frame(ctx, im, W / 2 + (i - (n - 1) / 2) * 360, 470, 250, 220, 28))
     plaque(ctx, W / 2, 860, 760, 150, '전시를 마치며', `${p.title}  ·  ${p.date}`)
     return
   }
-  frame(ctx, p.im, W / 2, 440, 1100, 620, 66)
-  const cap = p.caption || p.title
-  plaque(ctx, W / 2, 920, 980, 120, cap, `Jeju  ·  ${p.date}  ·  ${p.index + 1}/${p.total}`)
+  if (p.type === 'pair') {
+    p.ims.forEach((im, i) => {
+      const cx = W / 2 + (i ? 470 : -470)
+      const f = frame(ctx, im, cx, 400, 560, 560, 50)
+      plaque(ctx, cx, 400 + f.fh / 2 + 110, 640, 130, p.items[i].caption || p.title, p.info || `Jeju · ${p.date}`, 30)
+    })
+    return
+  }
+  const f = frame(ctx, p.im, W / 2, 430, 1100, 600, 66)
+  plaque(ctx, W / 2, 430 + f.fh / 2 + 92, 980, 120, p.item.caption || p.title, `${p.info || `Jeju  ·  ${p.date}`}  ·  ${p.index + 1}/${p.total}`)
 }
 
 // ── 시네마틱(사진 가득 + 아래 띠) ───────────────────────────────
 function drawCinema(ctx, p, T) {
   ctx.textBaseline = 'alphabetic'
   const hex = (c) => `#${c}`
+  const bar = (text, x, w) => {
+    if (!text) return
+    ctx.fillStyle = `rgba(${parseInt(T.bar.slice(0, 2), 16)},${parseInt(T.bar.slice(2, 4), 16)},${parseInt(T.bar.slice(4, 6), 16)},0.74)`
+    ctx.fillRect(x, H - 190, w, 190)
+    ctx.fillStyle = hex(T.accent)
+    ctx.fillRect(x, H - 190, w, 6)
+    ctx.fillStyle = hex(T.text)
+    ctx.font = `${w < W ? 40 : 52}px ${SANS}`
+    centerBlock(ctx, text, x + w / 2, H - 95, w - 120, w < W ? 52 : 64, 2)
+  }
   if (p.type === 'photo') {
-    cover(ctx, p.im, 0, 0, W, H)
-    if (p.caption) {
-      ctx.fillStyle = `rgba(${parseInt(T.bar.slice(0, 2), 16)},${parseInt(T.bar.slice(2, 4), 16)},${parseInt(T.bar.slice(4, 6), 16)},0.72)`
-      ctx.fillRect(0, H - 190, W, 190)
-      ctx.fillStyle = hex(T.accent)
-      ctx.fillRect(0, H - 190, W, 6)
-      ctx.fillStyle = hex(T.text)
-      ctx.font = `52px ${SANS}`
-      ctx.textAlign = 'center'
-      centerBlock(ctx, p.caption, W / 2, H - 95, W - 240, 64, 2)
-    }
+    coverBlur(ctx, p.im, 0, 0, W, H)
+    bar(p.item.caption, 0, W)
+    if (p.info) { ctx.fillStyle = hex(T.sub); ctx.font = `26px ${SANS}`; ctx.textAlign = 'right'; ctx.textBaseline = 'alphabetic'; ctx.fillText(p.info, W - 60, 56) }
     return
   }
-  const base = p.images?.[0]
-  cover(ctx, base, 0, 0, W, H)
+  if (p.type === 'pair') {
+    coverBlur(ctx, p.ims[0], 0, 0, W / 2, H)
+    coverBlur(ctx, p.ims[1], W / 2, 0, W / 2, H)
+    ctx.fillStyle = hex(T.accent)
+    ctx.fillRect(W / 2 - 3, 0, 6, H)
+    bar(p.items[0].caption, 0, W / 2)
+    bar(p.items[1].caption, W / 2, W / 2)
+    return
+  }
+  coverBlur(ctx, p.images?.[0], 0, 0, W, H)
   const g = ctx.createLinearGradient(0, 0, W, H)
   g.addColorStop(0, `${hex(T.bg)}f2`)
   g.addColorStop(1, `${hex(T.bg2)}cc`)
@@ -505,21 +616,23 @@ function drawCinema(ctx, p, T) {
   ctx.fillRect(W / 2 - 90, 380, 180, 8)
   ctx.fillStyle = hex(T.text)
   ctx.font = `bold 120px ${SANS}`
-  centerText(ctx, p.type === 'index' ? '감사합니다' : p.title, W / 2, 530, W - 360, 140, 2)
+  centerBlock(ctx, p.type === 'index' ? '감사합니다' : p.title, W / 2, 520, W - 360, 140, 2)
   ctx.fillStyle = hex(T.sub)
   ctx.font = `44px ${SANS}`
-  centerText(ctx, p.type === 'index' ? `제주픽으로 만든 미니앨범 · ${p.date}` : p.subtitle, W / 2, 690, W - 500, 58, 2)
-  if (p.type === 'cover') { ctx.font = `30px ${SANS}`; ctx.fillText('제주픽 미니앨범', W / 2, H - 100) }
+  centerBlock(ctx, p.type === 'index' ? `제주픽으로 만든 미니앨범 · ${p.date}` : p.subtitle, W / 2, 690, W - 500, 58, 2)
+  if (p.type === 'cover') { ctx.font = `30px ${SANS}`; ctx.textBaseline = 'alphabetic'; ctx.fillText('제주픽 미니앨범', W / 2, H - 100) }
 }
 
 // ── 외부에서 쓰는 함수 ──────────────────────────────────────
 const STYLE = { polaroid: drawPolaroid, film: drawFilm, scrap: drawScrap, gallery: drawGallery }
 
-// 앨범 전체 페이지(표지 + 사진들 + 마무리)를 그려 data URL 배열로 돌려준다
-// template: { id, kind: 'polaroid'|'film'|'scrap'|'gallery'|'cinema', ...색 }
+// 앨범 전체 페이지(표지 + 사진 페이지들 + 마무리)를 그려 data URL 배열로 돌려준다
+// items: [{ dataUrl, caption, place, date }] / template: { kind: 'polaroid'|'film'|'scrap'|'gallery'|'cinema', ...색 }
+// 세로 사진이 연달아 두 장이면 한 페이지에 나란히 넣는다
 export async function renderAlbumPages({ template, title, subtitle, items }) {
+  await ensureFonts([title, subtitle, ...items.flatMap((it) => [it.caption, it.place, it.date])].map((x) => x ?? ''))
   const ims = await Promise.all(items.map((it) => loadImg(it.dataUrl)))
-  const date = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\. /g, '.').replace(/\.$/, '')
+  const today = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\. /g, '.').replace(/\.$/, '')
   const canvas = document.createElement('canvas')
   canvas.width = W
   canvas.height = H
@@ -530,15 +643,26 @@ export async function renderAlbumPages({ template, title, subtitle, items }) {
     ctx.clearRect(0, 0, W, H)
     ctx.shadowColor = 'transparent'
     ctx.setLineDash([])
+    ctx.globalAlpha = 1
     if (template.kind === 'cinema') drawCinema(ctx, page, template)
     else STYLE[template.kind](ctx, page)
     return canvas.toDataURL('image/jpeg', 0.88)
   }
+  const date = items.find((it) => it.date)?.date || today
   const common = { title, subtitle, date, total, images: ims.filter(Boolean) }
-  const pages = [{ ...common, type: 'cover' }, ...items.map((it, i) => ({ ...common, type: 'photo', im: ims[i], caption: it.caption, index: i })), { ...common, type: 'index' }]
+
+  const photoPages = []
+  for (let i = 0; i < items.length; i += 1) {
+    if (portrait(ims[i]) && i + 1 < items.length && portrait(ims[i + 1])) {
+      photoPages.push({ ...common, type: 'pair', ims: [ims[i], ims[i + 1]], items: [items[i], items[i + 1]], index: i, info: infoOf(items[i], date) })
+      i += 1
+    } else photoPages.push({ ...common, type: 'photo', im: ims[i], item: items[i], index: i, info: infoOf(items[i], date) })
+  }
+  const pages = [{ ...common, type: 'cover' }, ...photoPages, { ...common, type: 'index' }]
   const out = []
   for (const pg of pages) {
-    out.push({ dataUrl: draw(pg), caption: pg.type === 'photo' ? pg.caption : pg.type === 'cover' ? title : '' })
+    const cap = pg.type === 'photo' ? pg.item.caption : pg.type === 'pair' ? [pg.items[0].caption, pg.items[1].caption].filter(Boolean).join(' / ') : pg.type === 'cover' ? title : ''
+    out.push({ dataUrl: draw(pg), caption: cap })
     await new Promise((r) => setTimeout(r, 0)) // 화면이 멈추지 않게 한 장마다 숨 돌리기
   }
   return out

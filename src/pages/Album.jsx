@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Container } from 'react-bootstrap'
 import { makeAlbumCaptions } from '../api/client'
-import { ALBUM_TEMPLATES, shrinkImage, downloadAlbumPptx, recommendTemplate, templateForMood, templateOf } from '../lib/albumTools'
+import { ALBUM_TEMPLATES, shrinkImage, downloadAlbumPptx, recommendTemplate, templateForMood, templateOf, readPhotoMeta, checkPhotoQuality } from '../lib/albumTools'
+import { reverseRegion } from '../lib/kakaoGeo'
 import { renderAlbumPages } from '../lib/albumRender'
 import { useAppStore } from '../store/useAppStore'
 import PageBanner from '../components/PageBanner'
@@ -57,6 +58,8 @@ export default function Album() {
   const [pages, setPages] = useState([]) // 템플릿대로 그린 페이지 그림들
   const [rendering, setRendering] = useState(false)
   const [tplManual, setTplManual] = useState(false) // 사용자가 직접 골랐으면 자동 추천이 덮어쓰지 않는다
+  const [tone, setTone] = useState('emotional') // AI 문구 어조
+  const [orderSuggest, setOrderSuggest] = useState(null) // AI 가 추천한 사진 순서
   const idle = useRef(null)
 
   // 모두 삭제 — 사진·문구·슬라이드는 이 화면의 메모리에만 있어서 상태를 비우면 끝난다
@@ -68,6 +71,7 @@ export default function Album() {
     setTpl('polaroid')
     setPages([])
     setTplManual(false)
+    setOrderSuggest(null)
     setErr('')
     setMsg(why)
   }, [])
@@ -98,7 +102,11 @@ export default function Album() {
         if (f.size > 15 * 1024 * 1024) throw new Error(`"${f.name}" 이(가) 너무 커요 (15MB 이하)`)
         const full = await shrinkImage(f, 1600, 0.82)
         const small = await shrinkImage(f, 1024, 0.72) // AI 에 보낼 작은 사진
-        added.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, name: f.name, ...full, small: small.dataUrl, caption: '', ok: true, note: '' })
+        // 사진 파일에서 촬영 날짜·위치를 읽는다 (브라우저 안에서만 쓰고, 장소는 읍·면·동 수준까지만 보여 준다)
+        const meta = await readPhotoMeta(f)
+        const place = meta.lat != null ? ((await reverseRegion(meta.lat, meta.lng)) || '') : ''
+        const warn = await checkPhotoQuality(full.dataUrl)
+        added.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, name: f.name, ...full, small: small.dataUrl, caption: '', ok: true, note: '', date: meta.date, place, warn })
       }
       setItems((cur) => [...cur, ...added])
       setDownloaded(false)
@@ -116,7 +124,7 @@ export default function Album() {
   }, [photoKey, tplManual])
 
   // 사진·문구·제목·디자인이 바뀌면 페이지를 다시 그린다 (입력 중에는 잠깐 기다렸다가)
-  const renderKey = JSON.stringify([items.map((x) => [x.id, x.caption]), title, subtitle, tpl])
+  const renderKey = JSON.stringify([items.map((x) => [x.id, x.caption, x.place, x.date]), title, subtitle, tpl])
   useEffect(() => {
     if (!items.length) { setPages([]); return undefined }
     let alive = true
@@ -134,17 +142,21 @@ export default function Album() {
   const move = (idx, d) => setItems((cur) => { const a = [...cur]; const j = idx + d; if (j < 0 || j >= a.length) return a; [a[idx], a[j]] = [a[j], a[idx]]; return a })
   const remove = (id) => setItems((cur) => cur.filter((x) => x.id !== id))
   const setCaption = (id, caption) => setItems((cur) => cur.map((x) => (x.id === id ? { ...x, caption } : x)))
+  const setField = (id, key, value) => setItems((cur) => cur.map((x) => (x.id === id ? { ...x, [key]: value } : x)))
+  const applyOrder = () => { if (orderSuggest) setItems((cur) => orderSuggest.map((i) => cur[i]).filter(Boolean)); setOrderSuggest(null) }
 
   const askAi = async () => {
     setErr(''); setMsg('')
     setBusy('ai')
     try {
-      const r = await makeAlbumCaptions(items.map((x) => x.small))
+      const r = await makeAlbumCaptions(items.map((x) => x.small), { tone, hints: items.map((x) => ({ place: x.place, date: x.date })) })
       setTitle(r.title || title)
       setSubtitle(r.subtitle || '')
       if (r.template && !tplManual) setTpl(templateForMood(r.template))
       setItems((cur) => cur.map((x, i) => ({ ...x, caption: r.captions?.[i] || x.caption, ok: r.photoSpotOk?.[i] !== false, note: r.notes?.[i] || '' })))
-      setMsg('AI가 제목과 문구를 만들었어요. 마음에 안 들면 직접 고칠 수 있어요.')
+      const changed = r.order && r.order.some((v, i) => v !== i)
+      setOrderSuggest(changed ? r.order : null)
+      setMsg(`AI가 제목과 문구를 만들었어요. 마음에 안 들면 어조를 바꿔 다시 만들거나 직접 고칠 수 있어요.`)
     } catch (e) { setErr(`${e.message} — 문구는 직접 적어도 앨범을 만들 수 있어요.`) } finally { setBusy('') }
   }
 
@@ -165,7 +177,7 @@ export default function Album() {
       <Container className="pt-4 pb-5 jp-info">
         <div className="alert alert-light border small">
           <i className="bi bi-shield-check me-1 text-jp" />
-          사진은 <b>이 브라우저 안에서만</b> 처리돼요. AI 문구를 만들 때만 줄인 사진이 AI에게 전달되고, 저장되지 않아요. 얼굴이나 개인정보가 나온 사진은 주의해서 올려 주세요.
+          사진은 <b>이 브라우저 안에서만</b> 처리돼요. 사진 파일에 든 촬영 날짜와 위치(읍·면·동까지만)는 앨범 페이지에 넣으려고 이 브라우저에서 읽어요. AI 문구를 만들 때만 줄인 사진과 그 날짜·지명 글자가 AI에게 전달되고, 저장되지 않아요. 얼굴이나 개인정보가 나온 사진은 주의해서 올려 주세요.
         </div>
 
         {err && <div className="alert alert-warning py-2">{err}</div>}
@@ -184,6 +196,11 @@ export default function Album() {
                   <div className="flex-grow-1 min-w-0">
                     <input className="form-control form-control-sm" placeholder={`${idx + 1}번 사진 문구 (직접 쓰거나 AI에게 맡기세요)`} value={x.caption} maxLength={60}
                       onChange={(e) => setCaption(x.id, e.target.value)} aria-label={`${idx + 1}번 사진 문구`} />
+                    <div className="d-flex flex-wrap gap-2 mt-1">
+                      <input className="form-control form-control-sm" style={{ width: 128 }} placeholder="날짜 2026.11.03" value={x.date || ''} maxLength={12} onChange={(e) => setField(x.id, 'date', e.target.value)} aria-label={`${idx + 1}번 사진 날짜`} />
+                      <input className="form-control form-control-sm" style={{ width: 200 }} placeholder="장소 (예: 서귀포시 성산읍)" value={x.place || ''} maxLength={20} onChange={(e) => setField(x.id, 'place', e.target.value)} aria-label={`${idx + 1}번 사진 장소`} />
+                    </div>
+                    {x.warn && <div className="small text-warning-emphasis mt-1"><i className="bi bi-exclamation-triangle me-1" />{x.warn}</div>}
                     {x.note && <div className="small text-muted mt-1"><i className="bi bi-info-circle me-1" />{x.note}</div>}
                   </div>
                   <div className="d-flex flex-column gap-1">
@@ -206,11 +223,24 @@ export default function Album() {
                 <input className="form-control" style={{ maxWidth: 420 }} placeholder="부제 (선택)" value={subtitle} maxLength={80} onChange={(e) => setSubtitle(e.target.value)} aria-label="부제" />
               </div>
               <div className="d-flex flex-wrap gap-2 align-items-center">
+                <select className="form-select" style={{ maxWidth: 170 }} value={tone} onChange={(e) => setTone(e.target.value)} aria-label="문구 어조">
+                  <option value="emotional">어조: 감성적</option>
+                  <option value="plain">어조: 담백한</option>
+                  <option value="witty">어조: 재치 있는</option>
+                  <option value="english">어조: 영어</option>
+                </select>
                 <button type="button" className="btn btn-primary" onClick={askAi} disabled={busy !== '' || !user}>
-                  {busy === 'ai' ? <><span className="spinner-border spinner-border-sm me-2" />AI가 사진을 보는 중…</> : <><i className="bi bi-stars me-1" />AI로 제목·문구 만들기</>}
+                  {busy === 'ai' ? <><span className="spinner-border spinner-border-sm me-2" />AI가 사진을 보는 중…</> : <><i className="bi bi-stars me-1" />{items.some((x) => x.caption) ? '문구 다시 만들기' : 'AI로 제목·문구 만들기'}</>}
                 </button>
                 {!user && <span className="small text-muted"><Link to="/login">로그인</Link>하면 AI 문구를 쓸 수 있어요. 직접 적는 것은 로그인 없이도 돼요.</span>}
               </div>
+              {orderSuggest && (
+                <div className="alert alert-info py-2 small mt-2 mb-0 d-flex flex-wrap align-items-center gap-2">
+                  <span><i className="bi bi-lightbulb me-1" />AI가 이야기 흐름에 맞는 사진 순서를 추천했어요 ({orderSuggest.map((i) => i + 1).join(' → ')}번). 첫 사진이 표지에 어울려요.</span>
+                  <button type="button" className="btn btn-sm btn-primary ms-auto" onClick={applyOrder}>추천 순서로 바꾸기</button>
+                  <button type="button" className="btn btn-sm btn-outline-sea" onClick={() => setOrderSuggest(null)}>그대로 두기</button>
+                </div>
+              )}
             </div>
 
             <div className="jp-panel mb-3">
@@ -226,7 +256,7 @@ export default function Album() {
                     ))}
                   </div>
                 ))}
-                <div className="small text-muted">{tplManual ? '직접 고른 디자인이에요' : '사진 색에 맞춰 자동으로 추천했어요'} · {ALBUM_TEMPLATES[tpl]?.desc} · 자동 재생은 장당 1.5초</div>
+                <div className="small text-muted">{tplManual ? '직접 고른 디자인이에요' : '사진 색에 맞춰 자동으로 추천했어요'} · {ALBUM_TEMPLATES[tpl]?.desc} · 자동 재생은 장당 1.5초 · 세로 사진 두 장은 한 페이지에 나란히 넣어요</div>
               </div>
               <Slideshow pages={pages} rendering={rendering} />
             </div>
@@ -240,6 +270,7 @@ export default function Album() {
                 <button type="button" className="btn btn-outline-sea" onClick={() => wipe('사진과 슬라이드를 모두 삭제했어요.')} disabled={busy !== ''}><i className="bi bi-trash me-1" />모두 삭제</button>
               </div>
               <div className="small text-muted mt-2">
+                PPT에는 장당 1.5초 자동 넘김과 페이드 전환이 들어 있어서, 슬라이드쇼를 시작하면 앨범처럼 저절로 넘어가요.<br />
                 {downloaded ? '내려받았어요. 이 페이지를 나가거나 15분이 지나면 사진과 슬라이드는 삭제돼요.' : '내려받지 않고 이 페이지를 나가거나 15분이 지나면 사진과 슬라이드는 자동으로 삭제돼요.'}
               </div>
             </div>

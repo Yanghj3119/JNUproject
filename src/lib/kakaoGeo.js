@@ -94,6 +94,23 @@ export function reverseAddress(lat, lng) {
   })
 }
 
+// 좌표 → 읍·면·동 수준의 짧은 지명 (예: "서귀포시 성산읍") | null — 앨범에 넣어도 집 주소가 드러나지 않을 만큼만 쓴다
+export function reverseRegion(lat, lng) {
+  const la = Number(lat), ln = Number(lng)
+  if (!la || !ln) return Promise.resolve(null)
+  return memo(`g:${la.toFixed(3)},${ln.toFixed(3)}`, async () => {
+    const kakao = await loadKakao()
+    return new Promise((resolve) => {
+      const t = setTimeout(() => resolve(null), 5000)
+      new kakao.maps.services.Geocoder().coord2RegionCode(ln, la, (data, status) => {
+        clearTimeout(t)
+        const d = status === kakao.maps.services.Status.OK ? (data.find((x) => x.region_type === 'H') ?? data[0]) : null
+        resolve(d ? [d.region_2depth_name, d.region_3depth_name].filter(Boolean).join(' ') || null : null)
+      })
+    })
+  })
+}
+
 // 주소로 좌표 찾기 → { lat, lng } | null
 export function findAddress(address) {
   const clean = String(address ?? '').split(',')[0].replace(/\(.*?\)/g, '').trim() // "…삼성로 10, 호텔 (이도일동)" → "…삼성로 10"

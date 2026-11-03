@@ -1,4 +1,7 @@
-# 제주픽 — 사진으로 만나는 제주 (관광객용 사진 명소 갤러리)
+# 제주픽(JEJU-PIC) — 사진으로 만나는 제주 (관광객용 사진 명소 갤러리)
+
+JEJU-PICTURES
+JEJU-PICK
 
 Vite + React + Router + Zustand + Bootstrap + Supabase + Three.js
 

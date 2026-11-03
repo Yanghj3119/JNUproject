@@ -55,6 +55,52 @@ export async function recommendTemplate(dataUrls) {
   return templateForMood(Object.entries(votes).sort((a, b) => b[1] - a[1])[0][0])
 }
 
+// 사진 파일에서 촬영 날짜와 위치(GPS)를 읽는다 — 브라우저 안에서만 쓰고, 줄인 사진에는 남지 않는다. 없으면 빈 값.
+export async function readPhotoMeta(file) {
+  try {
+    const exifr = (await import('exifr')).default
+    const [d, gps] = await Promise.all([
+      exifr.parse(file, { pick: ['DateTimeOriginal', 'CreateDate'] }).catch(() => null),
+      exifr.gps(file).catch(() => null),
+    ])
+    const dt = d?.DateTimeOriginal ?? d?.CreateDate
+    const date = dt instanceof Date && !Number.isNaN(dt.getTime())
+      ? `${dt.getFullYear()}.${String(dt.getMonth() + 1).padStart(2, '0')}.${String(dt.getDate()).padStart(2, '0')}`
+      : ''
+    const hasGps = Number.isFinite(gps?.latitude) && Number.isFinite(gps?.longitude)
+    return { date, lat: hasGps ? gps.latitude : null, lng: hasGps ? gps.longitude : null }
+  } catch { return { date: '', lat: null, lng: null } }
+}
+
+// 너무 어둡거나 초점이 흐린 사진을 가볍게 찾는다 (작은 그림으로 밝기와 가장자리 선명도를 계산)
+export async function checkPhotoQuality(dataUrl) {
+  try {
+    const im = await loadImg(dataUrl)
+    const w = 160
+    const h = Math.max(1, Math.round((im.height / im.width) * w))
+    const c = document.createElement('canvas')
+    c.width = w
+    c.height = h
+    const x = c.getContext('2d', { willReadFrequently: true })
+    x.drawImage(im, 0, 0, w, h)
+    const d = x.getImageData(0, 0, w, h).data
+    const g = new Float32Array(w * h)
+    let sum = 0
+    for (let i = 0; i < w * h; i++) { g[i] = 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2]; sum += g[i] }
+    const mean = sum / (w * h)
+    let m = 0, m2 = 0, n = 0
+    for (let j = 1; j < h - 1; j++) for (let i = 1; i < w - 1; i++) {
+      const v = 4 * g[j * w + i] - g[j * w + i - 1] - g[j * w + i + 1] - g[(j - 1) * w + i] - g[(j + 1) * w + i]
+      m += v; m2 += v * v; n++
+    }
+    const variance = m2 / n - (m / n) ** 2
+    if (mean < 40) return '조금 어두워요. 밝은 사진으로 바꾸면 더 예뻐요'
+    if (mean > 238) return '너무 밝게 찍혔어요'
+    if (variance < 25) return '초점이 흐리게 찍힌 것 같아요'
+    return ''
+  } catch { return '' }
+}
+
 // 사진 파일 → 긴 변을 maxEdge 로 줄인 JPEG data URL (EXIF 회전 적용, 위치 정보 등 메타데이터는 남지 않는다)
 export async function shrinkImage(file, maxEdge = 1600, quality = 0.82) {
   let bmp
@@ -78,8 +124,9 @@ export async function shrinkImage(file, maxEdge = 1600, quality = 0.82) {
 }
 
 // pages: renderAlbumPages 결과([{ dataUrl, caption }]) → 한 장씩 슬라이드로 넣은 .pptx 를 내려받는다
-// 그림 그대로 들어가서 미리보기와 똑같이 보이고, 문구는 슬라이드 노트에도 넣어 둔다. (라이브러리는 이 버튼을 누를 때만 불러온다)
-export async function downloadAlbumPptx({ title, pages, fileName }) {
+// 그림 그대로 들어가서 미리보기와 똑같이 보이고, 문구는 슬라이드 노트에도 넣어 둔다.
+// 슬라이드쇼를 시작하면 장당 advanceMs(기본 1.5초) 뒤에 부드러운 페이드로 자동으로 넘어간다. (라이브러리는 이 버튼을 누를 때만 불러온다)
+export async function downloadAlbumPptx({ title, pages, fileName, advanceMs = 1500 }) {
   const { default: PptxGenJS } = await import('pptxgenjs')
   const pptx = new PptxGenJS()
   pptx.layout = 'LAYOUT_WIDE' // 13.33 x 7.5 inch
@@ -90,5 +137,31 @@ export async function downloadAlbumPptx({ title, pages, fileName }) {
     s.addImage({ data: pg.dataUrl, x: 0, y: 0, w: 13.33, h: 7.5 })
     if (pg.caption) s.addNotes(pg.caption)
   })
-  await pptx.writeFile({ fileName: fileName || '제주-미니앨범.pptx' })
+  const name = fileName || '제주-미니앨범.pptx'
+  let blob = null
+  try {
+    // 만들어진 파일의 슬라이드 XML 에 전환(<p:transition>)을 끼워 넣는다 — 실패하면 설정 없는 일반 파일로 내려받는다
+    const { default: JSZip } = await import('jszip')
+    const buf = await pptx.write({ outputType: 'arraybuffer' })
+    const zip = await JSZip.loadAsync(buf)
+    const tr = `<p:transition spd="med" advClick="1" advTm="${advanceMs}"><p:fade/></p:transition>`
+    let patched = 0
+    for (const path of Object.keys(zip.files)) {
+      if (!/^ppt\/slides\/slide\d+\.xml$/.test(path)) continue
+      const xml = await zip.file(path).async('string')
+      if (xml.includes('<p:transition') || !xml.includes('</p:clrMapOvr>')) continue
+      zip.file(path, xml.replace('</p:clrMapOvr>', `</p:clrMapOvr>${tr}`))
+      patched += 1
+    }
+    if (patched) blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' })
+  } catch { blob = null }
+  if (!blob) { await pptx.writeFile({ fileName: name }); return }
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = name
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 10000)
 }
