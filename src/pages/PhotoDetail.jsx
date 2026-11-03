@@ -4,6 +4,7 @@ import { Col, Container, Row } from 'react-bootstrap'
 import { fetchAccess, fetchNearby, fetchPhotoInfo, fetchRelated } from '../api/client'
 import { useAsync } from '../lib/useAsync'
 import { useAppStore } from '../store/useAppStore'
+import { matchFavorites } from '../lib/favKey'
 import PlaceCard from '../components/PlaceCard'
 import Status from '../components/Status'
 import WeatherBadge from '../components/WeatherBadge'
@@ -19,7 +20,7 @@ export default function PhotoDetail() {
   const location = sp.get('loc') ?? ''
   const [picked, setPicked] = useState(0)
 
-  const faved = useAppStore((s) => s.favorites.some((f) => f.source === 'photo' && f.item_id === String(id)))
+  const faved = useAppStore((s) => matchFavorites(s.favorites, { source: 'photo', id, title }).length > 0)
   const toggle = useAppStore((s) => s.toggleFavorite)
 
   const info = useAsync(() => fetchPhotoInfo({ id, title, location }), [id, title, location])

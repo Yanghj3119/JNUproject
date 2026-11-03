@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { supabase } from '../lib/supabase'
 import { askAgent } from '../api/client'
+import { matchFavorites } from '../lib/favKey'
 
 // AI 가 추천한 코스를 최근 10개까지 이 브라우저(localStorage)에 기록해 둔다 — 새 대화·새로고침 뒤에도 다시 볼 수 있다
 const ROUTE_HISTORY_MAX = 10
@@ -82,11 +83,13 @@ export const useAppStore = create((set, get) => ({
   toggleFavorite: async ({ source, id, title, image }) => {
     if (!supabase) return get().toast('Supabase 설정(.env.local)이 필요해요', 'warning')
     if (!get().user) return get().toast('로그인하면 위시리스트에 담을 수 있어요', 'warning')
-    const existing = get().favorites.find((f) => f.source === source && f.item_id === String(id))
-    if (existing) {
-      const { error } = await supabase.from('favorites').delete().eq('id', existing.id)
+    // 같은 장소가 다른 화면(사진 탐색·지도·포토 스팟)에서 담겨 있어도 함께 빼서, 어디서 눌러도 하트가 같게 보이게 한다
+    const existing = matchFavorites(get().favorites, { source, id, title })
+    if (existing.length) {
+      const ids = existing.map((f) => f.id)
+      const { error } = await supabase.from('favorites').delete().in('id', ids)
       if (error) return get().toast(error.message, 'danger')
-      set({ favorites: get().favorites.filter((f) => f.id !== existing.id) })
+      set({ favorites: get().favorites.filter((f) => !ids.includes(f.id)) })
       return get().toast('위시리스트에서 뺐어요', 'secondary')
     }
     const { data, error } = await supabase.from('favorites')

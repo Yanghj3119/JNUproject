@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Col, Container, Row } from 'react-bootstrap'
 import { fetchAccess, fetchNearby, fetchSpots, fetchWeather } from '../api/client'
 import { useAppStore } from '../store/useAppStore'
+import { matchFavorites } from '../lib/favKey'
 import { useAsync } from '../lib/useAsync'
 import { TYPE_META, typeMeta, skyIcon } from '../lib/format'
 import { fallbackFor } from '../data/landmarks'
@@ -100,7 +101,7 @@ export default function Map3D() {
   const [type, setType] = useState('12')
   const [sel, setSel] = useState(null)
   // 핀을 눌러 나온 장소를 위시리스트(하트)에 담기
-  const faved = useAppStore((st) => Boolean(sel) && st.favorites.some((f) => f.source === 'place' && f.item_id === String(sel.id)))
+  const faved = useAppStore((st) => Boolean(sel) && matchFavorites(st.favorites, { source: 'place', id: sel.id, title: sel.title }).length > 0)
   const toggleFav = useAppStore((st) => st.toggleFavorite)
   const [found, setFound] = useState(null) // 검색해서 찾은 장소 (핀으로 함께 표시)
   const [view, setView] = useState('3d') // '3d' | 'map'

@@ -1,10 +1,11 @@
 import { Link } from 'react-router-dom'
 import { useAppStore } from '../store/useAppStore'
+import { matchFavorites } from '../lib/favKey'
 import { distLabel, typeMeta } from '../lib/format'
 
 // 주변 명소 등 "장소" 한 곳을 보여 주는 가로형 카드
 export default function PlaceCard({ place }) {
-  const faved = useAppStore((s) => s.favorites.some((f) => f.source === 'place' && f.item_id === String(place.id)))
+  const faved = useAppStore((s) => matchFavorites(s.favorites, { source: 'place', id: place.id, title: place.title }).length > 0)
   const toggle = useAppStore((s) => s.toggleFavorite)
   const meta = typeMeta(place.type)
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Col, Container, Row } from 'react-bootstrap'
 import { useAppStore } from '../store/useAppStore'
 import { displayName } from '../lib/format'
@@ -9,15 +9,34 @@ import KakaoMap from '../components/KakaoMap'
 import PageBanner from '../components/PageBanner'
 import ShareButton from '../components/ShareButton'
 import { routeShareUrl } from '../lib/share'
+import { searchJejuPlaces } from '../lib/kakaoGeo'
 import Status from '../components/Status'
 
-const MAX_PICK = 8 // 코스 하나에 넣을 수 있는 최대 장소 수 (propose_route 한도와 같다)
+const MAX_PICK = 6 // 코스 하나에 넣을 장소 수 (많을수록 AI가 오래 걸리고 실패하기 쉬워서 6곳까지로 제한한다)
 
-// 위시리스트를 AI 가이드에게 넘기는 질문. 사진 제목("다랑쉬오름의 아침")이 섞여 있으니 실제 장소 확인도 부탁한다.
-const wishlistPrompt = (items) =>
-  `내 위시리스트에 담은 곳이야: ${items.map((f) => f.title).join(', ')}. ` +
-  '이 장소들을 모두 넣어서 가까운 순서로 방문 코스를 만들어줘. 사진 제목처럼 보이는 이름은 실제 장소를 확인해서 넣고, 못 찾는 곳은 말로 알려줘. ' +
-  '날씨와 이동 거리도 함께 알려주고, 하루에 가기 너무 멀면 일차별로 나눠서 제안해줘.'
+// 일정 설정 — AI 에게 "하루 코스" 또는 "일차별 코스"로 만들어 달라고 알려 준다
+const PLAN_DAYS = [
+  { id: 'auto', label: '알아서', ask: '하루에 가기 너무 멀면 일차별로 나눠서 제안해줘.' },
+  { id: 'day', label: '당일', ask: '하루(당일) 코스로 만들어줘. 하루에 다 못 가는 곳은 말로 알려줘.' },
+  { id: '2d', label: '1박 2일', ask: '1박 2일(2일차)로 나눠서 제안해줘.' },
+  { id: '3d', label: '2박 3일', ask: '2박 3일(3일차)로 나눠서 제안해줘.' },
+]
+
+// 위시리스트를 AI 가이드에게 넘기는 질문. 미리 찾아 둔 좌표가 있는 곳은 AI 가 다시 찾지 않고 그 좌표를 그대로 쓰게 한다.
+// 사진 제목("다랑쉬오름의 아침")처럼 좌표를 못 찾은 곳만 AI 가 실제 장소를 확인한다.
+const wishlistPrompt = (items, days = 'auto') =>
+  `내 위시리스트에 담은 곳이야: ${items.map((f) => (f.lat ? `${f.title}(${f.addr || '제주'}, 위도 ${f.lat.toFixed(5)}, 경도 ${f.lng.toFixed(5)})` : f.title)).join(', ')}. ` +
+  '이 장소들을 모두 넣어서 가까운 순서로 방문 코스를 만들어줘. 위도·경도가 함께 적힌 곳은 도구로 다시 찾지 말고 그 좌표를 코스(propose_route)의 lat/lng 로 그대로 넣어줘. 좌표가 없는 곳만 실제 장소를 확인해서 넣고, 못 찾는 곳은 말로 알려줘. ' +
+  `날씨와 이동 거리도 함께 알려주고, ${(PLAN_DAYS.find((d) => d.id === days) ?? PLAN_DAYS[0]).ask}`
+
+// 카카오 장소 검색으로 위시리스트 장소의 좌표를 미리 찾는다 (이름이 비슷하게 일치하는 결과만 쓴다)
+const sameName = (a, b) => { const n = (t) => String(t).replace(/[\s·()-]/g, ''); return n(a).includes(n(b)) || n(b).includes(n(a)) }
+async function withCoords(items) {
+  return Promise.all(items.map(async (f) => {
+    const hit = (await searchJejuPlaces(f.title, 3).catch(() => [])).find((r) => r.lat && sameName(r.title, f.title))
+    return hit ? { ...f, addr: hit.addr, lat: hit.lat, lng: hit.lng } : f
+  }))
+}
 
 const dateOf =(iso) => new Date(iso).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
 
@@ -94,7 +113,14 @@ export default function My() {
     if (chosenIds.has(f.id)) setOff((s) => new Set(s).add(f.id))
     else if (chosen.length < MAX_PICK) setOff((s) => { const n = new Set(s); n.delete(f.id); return n })
   }
-  const planLink = chosen.length ? `/agent?q=${encodeURIComponent(wishlistPrompt(chosen))}` : '/agent'
+  const nav = useNavigate()
+  const [days, setDays] = useState('auto')
+  const [planning, setPlanning] = useState(false)
+  const makePlan = async () => {
+    if (!chosen.length) return nav('/agent')
+    setPlanning(true)
+    try { nav(`/agent?q=${encodeURIComponent(wishlistPrompt(await withCoords(chosen), days))}`) } finally { setPlanning(false) }
+  }
 
   const linkOf = (f) => (f.source === 'photo'
     ? `/photo/${encodeURIComponent(f.item_id)}?${new URLSearchParams({ title: f.title, img: f.image ?? '' })}`
@@ -118,7 +144,7 @@ export default function My() {
     <>
     <PageBanner img="/images/jeju-chairs.jpg" pos="50% 55%" eyebrow="내 보관함" title={`${name}님의 여행`}
       sub={`위시리스트 ${favorites.length}개 · 저장한 경로 ${routes.length}개 · 올린 사진 ${photos.length}장`}>
-      <Link to={planLink} className="btn btn-light"><i className="bi bi-stars me-1" />{chosen.length ? `위시리스트 ${chosen.length}곳으로 코스 만들기` : 'AI에게 코스 물어보기'}</Link>
+      <button type="button" onClick={makePlan} disabled={planning} className="btn btn-light"><i className="bi bi-stars me-1" />{planning ? '장소 확인 중…' : chosen.length ? `위시리스트 ${chosen.length}곳으로 코스 만들기` : 'AI에게 코스 물어보기'}</button>
     </PageBanner>
     <Container className="pt-4">
       <div className="jp-tabs" style={{ maxWidth: 520 }}>
@@ -136,7 +162,10 @@ export default function My() {
                 <div className="fw-semibold"><i className="bi bi-check2-square me-1" />코스에 넣을 곳 {chosen.length}/{Math.min(favorites.length, MAX_PICK)}</div>
                 <div className="text-muted">카드의 체크를 눌러 빼거나 넣을 수 있어요. 최대 {MAX_PICK}곳까지 한 코스로 만들어요.</div>
               </div>
-              <Link to={planLink} className={`btn btn-primary ${chosen.length ? '' : 'disabled'}`}><i className="bi bi-stars me-1" />AI에게 이 곳들로 코스 만들기</Link>
+              <select className="form-select form-select-sm" style={{ width: 120 }} value={days} onChange={(e) => setDays(e.target.value)} aria-label="코스 일정">
+                {PLAN_DAYS.map((d) => <option key={d.id} value={d.id}>{d.id === 'auto' ? '일정: 알아서' : `일정: ${d.label}`}</option>)}
+              </select>
+              <button type="button" onClick={makePlan} disabled={!chosen.length || planning} className="btn btn-primary"><i className="bi bi-stars me-1" />{planning ? '장소 확인 중…' : 'AI에게 이 곳들로 코스 만들기'}</button>
             </div>
           )}
           <Row xs={1} sm={2} lg={4} className="g-3">

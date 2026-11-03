@@ -1,10 +1,11 @@
 import { Link } from 'react-router-dom'
 import { useAppStore } from '../store/useAppStore'
+import { matchFavorites } from '../lib/favKey'
 import { photoLink } from '../lib/format'
 
 // 사진 한 장 카드 — 마우스를 올리면 촬영지·촬영자·키워드가 나타나고, 바로 AI 에게 물어볼 수 있다
 export default function PhotoCard({ photo }) {
-  const faved = useAppStore((s) => s.favorites.some((f) => f.source === 'photo' && f.item_id === String(photo.id)))
+  const faved = useAppStore((s) => matchFavorites(s.favorites, { source: 'photo', id: photo.id, title: photo.title }).length > 0)
   const toggle = useAppStore((s) => s.toggleFavorite)
   const tags = String(photo.keywords || '').split(/[,#]/).map((t) => t.trim()).filter(Boolean).slice(0, 3)
   const ask = `${photo.title}${photo.location ? ` (${photo.location})` : ''}은(는) 어떤 곳이야? 근처 코스도 추천해줘`

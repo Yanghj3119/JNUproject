@@ -8,13 +8,14 @@ import { PHOTO_THEMES, themeLabel, themesOf } from '../data/photoThemes'
 import { mapToLink, reverseAddress } from '../lib/kakaoGeo'
 import { listSpots } from '../lib/userSpots'
 import { useAppStore } from '../store/useAppStore'
+import { matchFavorites } from '../lib/favKey'
 import KakaoMap from '../components/KakaoMap'
 import PageBanner from '../components/PageBanner'
 import Status from '../components/Status'
 
 // 한국관광공사 관광지(사진이 있는 곳만)를 테마별 포토 스팟으로 보여 준다
 function SpotCard({ spot, active, onSelect }) {
-  const faved = useAppStore((s) => s.favorites.some((f) => f.source === 'place' && f.item_id === String(spot.id)))
+  const faved = useAppStore((s) => matchFavorites(s.favorites, { source: 'place', id: spot.id, title: spot.title }).length > 0)
   const toggle = useAppStore((s) => s.toggleFavorite)
   return (
     <div className={`jp-photo ${active ? 'jp-spot-on' : ''}`} onMouseEnter={onSelect}>
