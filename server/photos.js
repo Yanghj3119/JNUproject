@@ -44,9 +44,11 @@ function normAward(p) {
 
 const isJeju = (p) => /제주|서귀포|한라|성산|애월|우도/.test(`${p.title} ${p.location} ${p.keywords}`)
 
-async function galleryQuery(keyword, pages = 3) {
+// pages 는 2쪽(200장)이면 화면(최대 80장)에 충분하다 — 공공데이터 일일 호출 한도를 아끼려고 줄였다
+// 실패하면 빈 목록을 돌려주되 onError 로 알려 준다 (일일 호출 한도 초과 등을 나중에 알아챌 수 있게)
+async function galleryQuery(keyword, pages = 2, onError = () => {}) {
   const one = (pageNo) => callApi(`${GALLERY}/gallerySearchList1`, tourParams({ keyword, numOfRows: 100, pageNo, arrange: 'A' }))
-    .then((b) => toList(b).map(norm)).catch(() => [])
+    .then((b) => toList(b).map(norm)).catch((e) => { onError(e); return [] })
   return (await Promise.all(Array.from({ length: pages }, (_, i) => one(i + 1)))).flat()
 }
 
@@ -58,13 +60,20 @@ export async function searchAwardPhotos({ keyword = '', rows = 40 } = {}) {
 }
 
 // ① search_photos — 키워드로 제주 관광사진 검색 (두 소스를 섞어서)
-export async function searchPhotos({ keyword = '', rows = 12 } = {}) {
+export async function searchPhotos(args = {}) {
+  return (await searchPhotosInfo(args)).list
+}
+
+// degraded: 관광사진 API 가 실패해서(예: 일일 호출 한도 초과) 수상작만 돌려준 경우 — 이런 결과는 CDN 에 오래 저장하면 안 된다
+export async function searchPhotosInfo({ keyword = '', rows = 12 } = {}) {
   rows = Math.min(Number(rows) || 12, 80)
   const kw = String(keyword).trim()
+  let degraded = false
+  const fail = () => { degraded = true }
 
   const [g1, g2, awards] = await Promise.all([
-    galleryQuery(kw ? `제주 ${kw}` : '제주'),
-    kw ? galleryQuery(kw, 1).then((l) => l.filter(isJeju)) : Promise.resolve([]), // 제주 접두어로 부족할 때 보충
+    galleryQuery(kw ? `제주 ${kw}` : '제주', 2, fail),
+    kw ? galleryQuery(kw, 1, fail).then((l) => l.filter(isJeju)) : Promise.resolve([]), // 제주 접두어로 부족할 때 보충
     searchAwardPhotos({ keyword: kw, rows: Math.min(rows, 50) }).catch(() => []),
   ])
 
@@ -76,9 +85,10 @@ export async function searchPhotos({ keyword = '', rows = 12 } = {}) {
     if (gallery[i]) mixed.push(gallery[i])
   }
   const seen = new Set()
-  return mixed
+  const list = mixed
     .filter((p) => p.image && !seen.has(p.image) && seen.add(p.image))
     .slice(0, rows)
+  return { list, degraded }
 }
 
 // 원본 응답 확인용 (/api/photos?debug=1) — 필드명·월 형식 점검
