@@ -7,6 +7,8 @@ import Map3D from './pages/Map3D'
 import Info from './pages/Info'
 import PhotoSpots from './pages/PhotoSpots'
 import Near from './pages/Near'
+import Album from './pages/Album'
+import SpotUpload from './pages/SpotUpload'
 import SharedRoute from './pages/SharedRoute'
 import Agent from './pages/Agent'
 import My from './pages/My'
@@ -21,6 +23,7 @@ export const NAV_ITEMS = [
   { to: '/explore', label: '사진 탐색', icon: 'images' },
   { to: '/spots', label: '포토 스팟', icon: 'camera' },
   { to: '/near', label: '내 주변', icon: 'geo-alt' },
+  { to: '/album', label: '미니앨범', icon: 'film' },
   { to: '/map', label: '지도', icon: 'map' },
   { to: '/info', label: '여행 정보', icon: 'info-circle' },
 ]
@@ -39,6 +42,8 @@ export const router = createBrowserRouter([
       { path: 'info', element: <Info /> },
       { path: 'spots', element: <PhotoSpots /> },
       { path: 'near', element: <Near /> },
+      { path: 'album', element: <Album /> },
+      { path: 'spots/upload', element: <SpotUpload /> },
       { path: 'share', element: <SharedRoute /> },
       { path: 'my', element: <My /> },
       { path: 'login', element: <Login /> },

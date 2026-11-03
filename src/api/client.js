@@ -34,4 +34,5 @@ export const fetchTransit = (kind, params = {}) => get('/api/transit', { kind, .
 
 // 연결 점검 · 에이전트
 export const fetchHealth = () => get('/api/health')
-export const askAgent = (message, history) => post('/api/agent', { message, history })
+export const makeAlbumCaptions = (images) => post('/api/album', { images }) // 미니앨범 제목·문구 (사진은 저장되지 않음)
+export const askAgent =(message, history) => post('/api/agent', { message, history })

@@ -16,6 +16,7 @@
     "@supabase/supabase-js": "^2.118.0",
     "bootstrap": "^5.3.8",
     "bootstrap-icons": "^1.13.2",
+    "pptxgenjs": "^4.0.1",
     "react": "^19.3.1",
     "react-bootstrap": "^2.10.10",
     "react-dom": "^19.3.1",

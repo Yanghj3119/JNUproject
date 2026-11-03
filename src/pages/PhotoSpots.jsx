@@ -5,6 +5,7 @@ import { fetchSpots, fetchWeather } from '../api/client'
 import { useAsync } from '../lib/useAsync'
 import { PHOTO_THEMES, themeLabel, themesOf } from '../data/photoThemes'
 import { mapToLink } from '../lib/kakaoGeo'
+import { listSpots } from '../lib/userSpots'
 import { useAppStore } from '../store/useAppStore'
 import KakaoMap from '../components/KakaoMap'
 import PageBanner from '../components/PageBanner'
@@ -51,6 +52,9 @@ export default function PhotoSpots() {
     return pages.flat().filter((s) => s.image && s.lat > 33 && s.lng > 126)
   }, [])
   const sun = useAsync(() => fetchWeather({ place: '제주시' }), [])
+  // 여행자가 올린 사진 (테이블을 아직 안 만들었거나 실패하면 조용히 비워 둔다)
+  const community = useAsync(() => listSpots().catch(() => []), [])
+  const travelers = community.data ?? []
 
   const spots = useMemo(() => {
     const seen = new Set()
@@ -59,7 +63,10 @@ export default function PhotoSpots() {
   const counts = useMemo(() => Object.fromEntries(PHOTO_THEMES.map((t) => [t.id, spots.filter((s) => s.themes.includes(t.id)).length])), [spots])
 
   const list = useMemo(() => spots.filter((s) => (theme === 'all' || s.themes.includes(theme)) && (!q.trim() || s.title.includes(q.trim()))), [spots, theme, q])
-  const pins = useMemo(() => list.slice(0, 120).map((s) => ({ id: s.id, title: s.title, lat: s.lat, lng: s.lng, type: '12' })), [list])
+  const pins = useMemo(() => [
+    ...travelers.map((t) => ({ id: `u-${t.id}`, title: `${t.title} (여행자 사진)`, lat: t.lat, lng: t.lng, type: 'search' })),
+    ...list.slice(0, 120).map((s) => ({ id: s.id, title: s.title, lat: s.lat, lng: s.lng, type: '12' })),
+  ], [list, travelers])
   const cur = PHOTO_THEMES.find((t) => t.id === theme)
   const s = sun.data?.sun
 
@@ -79,6 +86,26 @@ export default function PhotoSpots() {
       </PageBanner>
 
       <Container className="pt-4">
+        <div className="d-flex flex-wrap gap-2 align-items-center mb-3">
+          <Link to="/spots/upload" className="btn btn-sm btn-primary"><i className="bi bi-cloud-arrow-up me-1" />내 사진 올리기</Link>
+          <span className="small text-muted">여행자가 올린 사진은 노란 핀으로 지도에 표시돼요.</span>
+        </div>
+        {travelers.length > 0 && (
+          <div className="mb-4">
+            <div className="jp-eyebrow mb-2">여행자 사진 {travelers.length}장</div>
+            <div className="d-flex gap-3" style={{ overflowX: 'auto', paddingBottom: 6 }}>
+              {travelers.map((t) => (
+                <button key={t.id} type="button" className={`jp-photo border-0 p-0 text-start ${selId === `u-${t.id}` ? 'jp-spot-on' : ''}`} style={{ minWidth: 200, maxWidth: 200 }} onClick={() => setSelId(`u-${t.id}`)}>
+                  <div className="jp-photo-img"><img src={t.url} alt={t.title} loading="lazy" /></div>
+                  <div className="jp-photo-body">
+                    <div className="fw-semibold text-truncate">{t.title}</div>
+                    <div className="small text-muted text-truncate">{t.place_name}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <div className="d-flex flex-wrap gap-2 mb-3">
           <button type="button" className={`jp-month ${theme === 'all' ? 'on' : ''}`} onClick={() => setTheme('all')}>전체 {spots.length || ''}</button>
           {PHOTO_THEMES.map((t) => (
