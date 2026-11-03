@@ -41,6 +41,30 @@ function SpotCard({ spot, active, onSelect }) {
   )
 }
 
+// 여행자가 올린 사진 카드 (상단 "여행자" 태그를 눌렀을 때만 보인다)
+function TravelerCard({ photo, active, onSelect }) {
+  return (
+    <div className={`jp-photo ${active ? 'jp-spot-on' : ''}`} onMouseEnter={onSelect}>
+      <button type="button" className="jp-photo-img border-0 p-0 w-100" onClick={onSelect} aria-label={`${photo.title} 지도에서 보기`}>
+        <img src={photo.url} alt={photo.title} loading="lazy" />
+        <div className="jp-photo-hover">
+          <div className="t">{photo.title}</div>
+          <div className="m"><span><i className="bi bi-geo-alt me-1" />{photo.place_name}</span></div>
+          <div className="k"><span>여행자</span></div>
+        </div>
+      </button>
+      <div className="jp-photo-body">
+        <div className="fw-semibold text-truncate">{photo.title}</div>
+        <div className="small text-muted text-truncate">{photo.caption || photo.place_name}</div>
+        <div className="d-flex gap-2 mt-2">
+          <Link className="btn btn-sm btn-primary flex-grow-1" to={`/agent?q=${encodeURIComponent(`${photo.place_name || photo.title} 근처 코스를 알려줘`)}`}><i className="bi bi-stars me-1" />AI 코스</Link>
+          <a className="btn btn-sm btn-outline-sea" target="_blank" rel="noreferrer" href={mapToLink(photo.title, photo.lat, photo.lng)} aria-label="길찾기"><i className="bi bi-signpost" /></a>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function PhotoSpots() {
   const [theme, setTheme] = useState('all')
   const [q, setQ] = useState('')
@@ -62,12 +86,15 @@ export default function PhotoSpots() {
   }, [all.data])
   const counts = useMemo(() => Object.fromEntries(PHOTO_THEMES.map((t) => [t.id, spots.filter((s) => s.themes.includes(t.id)).length])), [spots])
 
-  const list = useMemo(() => spots.filter((s) => (theme === 'all' || s.themes.includes(theme)) && (!q.trim() || s.title.includes(q.trim()))), [spots, theme, q])
-  const pins = useMemo(() => [
-    ...travelers.map((t) => ({ id: `u-${t.id}`, title: `${t.title} (여행자 사진)`, lat: t.lat, lng: t.lng, type: 'search' })),
-    ...list.slice(0, 120).map((s) => ({ id: s.id, title: s.title, lat: s.lat, lng: s.lng, type: '12' })),
-  ], [list, travelers])
-  const cur = PHOTO_THEMES.find((t) => t.id === theme)
+  const isTraveler = theme === 'traveler'
+  const list = useMemo(() => (isTraveler
+    ? travelers.filter((t) => !q.trim() || `${t.title} ${t.place_name ?? ''}`.includes(q.trim()))
+    : spots.filter((s) => (theme === 'all' || s.themes.includes(theme)) && (!q.trim() || s.title.includes(q.trim())))), [spots, travelers, theme, q, isTraveler])
+  // 여행자 사진의 위치는 "여행자" 태그를 골랐을 때만 지도에 표시한다
+  const pins = useMemo(() => (isTraveler
+    ? list.map((t) => ({ id: `u-${t.id}`, title: t.title, lat: t.lat, lng: t.lng, type: 'search' }))
+    : list.slice(0, 120).map((s) => ({ id: s.id, title: s.title, lat: s.lat, lng: s.lng, type: '12' }))), [list, isTraveler])
+  const cur = isTraveler ? { desc: '여행자가 직접 올린 사진' } : PHOTO_THEMES.find((t) => t.id === theme)
   const s = sun.data?.sun
 
   return (
@@ -86,26 +113,6 @@ export default function PhotoSpots() {
       </PageBanner>
 
       <Container className="pt-4">
-        <div className="d-flex flex-wrap gap-2 align-items-center mb-3">
-          <Link to="/spots/upload" className="btn btn-sm btn-primary"><i className="bi bi-cloud-arrow-up me-1" />내 사진 올리기</Link>
-          <span className="small text-muted">여행자가 올린 사진은 노란 핀으로 지도에 표시돼요.</span>
-        </div>
-        {travelers.length > 0 && (
-          <div className="mb-4">
-            <div className="jp-eyebrow mb-2">여행자 사진 {travelers.length}장</div>
-            <div className="d-flex gap-3" style={{ overflowX: 'auto', paddingBottom: 6 }}>
-              {travelers.map((t) => (
-                <button key={t.id} type="button" className={`jp-photo border-0 p-0 text-start ${selId === `u-${t.id}` ? 'jp-spot-on' : ''}`} style={{ minWidth: 200, maxWidth: 200 }} onClick={() => setSelId(`u-${t.id}`)}>
-                  <div className="jp-photo-img"><img src={t.url} alt={t.title} loading="lazy" /></div>
-                  <div className="jp-photo-body">
-                    <div className="fw-semibold text-truncate">{t.title}</div>
-                    <div className="small text-muted text-truncate">{t.place_name}</div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
         <div className="d-flex flex-wrap gap-2 mb-3">
           <button type="button" className={`jp-month ${theme === 'all' ? 'on' : ''}`} onClick={() => setTheme('all')}>전체 {spots.length || ''}</button>
           {PHOTO_THEMES.map((t) => (
@@ -113,28 +120,34 @@ export default function PhotoSpots() {
               <i className={`bi bi-${t.icon} me-1`} />{t.label} {counts[t.id] || ''}
             </button>
           ))}
+          <button type="button" className={`jp-month ${isTraveler ? 'on' : ''}`} onClick={() => { setTheme('traveler'); setSelId(null) }}>
+            <i className="bi bi-people me-1" />여행자 {travelers.length || ''}
+          </button>
         </div>
         <div className="d-flex flex-wrap gap-2 align-items-center mb-4">
           <input className="form-control" style={{ maxWidth: 280 }} placeholder="명소 이름 검색" value={q} onChange={(e) => setQ(e.target.value)} aria-label="명소 이름 검색" />
-          <span className="small text-muted">{cur ? cur.desc : '제주 곳곳의 사진 명소'} · {list.length}곳</span>
+          <span className="small text-muted">{cur ? cur.desc : '제주 곳곳의 사진 명소'} · {list.length}{isTraveler ? '장' : '곳'}</span>
+          <Link to="/spots/upload" className="btn btn-sm btn-outline-sea ms-auto"><i className="bi bi-cloud-arrow-up me-1" />내 사진 올리기</Link>
         </div>
 
-        <Status loading={all.loading} error={all.error} empty={!all.loading && !all.error && !list.length} emptyText="조건에 맞는 포토 스팟이 없어요" />
+        <Status loading={all.loading} error={all.error} empty={!all.loading && !all.error && !list.length} emptyText={isTraveler ? '아직 여행자가 올린 사진이 없어요. 첫 사진을 올려 보세요!' : '조건에 맞는 포토 스팟이 없어요'} />
 
         {list.length > 0 && (
           <Row className="g-4">
             <Col lg={7} xl={8}>
               <Row xs={1} sm={2} xl={3} className="g-3">
-                {list.slice(0, 60).map((sp) => <Col key={sp.id}><SpotCard spot={sp} active={sp.id === selId} onSelect={() => setSelId(sp.id)} /></Col>)}
+                {isTraveler
+                  ? list.map((t) => <Col key={t.id}><TravelerCard photo={t} active={selId === `u-${t.id}`} onSelect={() => setSelId(`u-${t.id}`)} /></Col>)
+                  : list.slice(0, 60).map((sp) => <Col key={sp.id}><SpotCard spot={sp} active={sp.id === selId} onSelect={() => setSelId(sp.id)} /></Col>)}
               </Row>
-              {list.length > 60 && <div className="small text-muted mt-3">상위 60곳만 보여요. 테마나 검색어로 좁혀 보세요.</div>}
+              {!isTraveler && list.length > 60 && <div className="small text-muted mt-3">상위 60곳만 보여요. 테마나 검색어로 좁혀 보세요.</div>}
             </Col>
             <Col lg={5} xl={4}>
               <div className="jp-sticky-map">
                 <div className="jp-route-map rounded-3 overflow-hidden border" style={{ height: 460 }}>
                   <KakaoMap spots={pins} selectedId={selId} onSelect={(p) => setSelId(p?.id ?? null)} locate />
                 </div>
-                <div className="small text-muted mt-2">핀을 누르면 해당 카드가 강조돼요. 지도 핀은 최대 120곳까지 표시해요.</div>
+                <div className="small text-muted mt-2">{isTraveler ? '여행자가 올린 사진의 위치예요. 핀을 누르면 해당 카드가 강조돼요.' : '핀을 누르면 해당 카드가 강조돼요. 지도 핀은 최대 120곳까지 표시해요.'}</div>
               </div>
             </Col>
           </Row>

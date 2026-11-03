@@ -2,15 +2,18 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Container } from 'react-bootstrap'
 import { makeAlbumCaptions } from '../api/client'
-import { shrinkImage, downloadAlbumPptx } from '../lib/albumTools'
+import { ALBUM_TEMPLATES, shrinkImage, downloadAlbumPptx, recommendTemplate } from '../lib/albumTools'
 import { useAppStore } from '../store/useAppStore'
 import PageBanner from '../components/PageBanner'
 
 const MAX = 5
+const SLIDE_MS = 1500 // 한 장면에 머무는 시간 (1~2초)
 const IDLE_MS = 15 * 60e3 // 15분 동안 아무것도 안 하면 사진과 슬라이드를 지운다
 
 // 슬라이드쇼 미리보기 (표지 + 사진 + 마지막 장)
-function Slideshow({ title, subtitle, items }) {
+function Slideshow({ title, subtitle, items, template }) {
+  const T = ALBUM_TEMPLATES[template] ?? ALBUM_TEMPLATES.classic
+  const vars = { '--tp-bg': `#${T.bg}`, '--tp-bg2': `#${T.bg2}`, '--tp-bar': `#${T.bar}`, '--tp-accent': `#${T.accent}`, '--tp-text': `#${T.text}`, '--tp-sub': `#${T.sub}` }
   const slides = [{ kind: 'title' }, ...items.map((it) => ({ kind: 'photo', ...it })), { kind: 'end' }]
   const [i, setI] = useState(0)
   const [playing, setPlaying] = useState(false)
@@ -19,7 +22,7 @@ function Slideshow({ title, subtitle, items }) {
   useEffect(() => { if (i >= slides.length) setI(0) }, [slides.length, i])
   useEffect(() => {
     if (!playing) return undefined
-    const t = setInterval(() => setI((x) => (x + 1) % slides.length), 3500)
+    const t = setInterval(() => setI((x) => (x + 1) % slides.length), SLIDE_MS)
     return () => clearInterval(t)
   }, [playing, slides.length])
 
@@ -29,8 +32,9 @@ function Slideshow({ title, subtitle, items }) {
 
   return (
     <div>
-      <div ref={box} className="jp-slide" role="img" aria-label="미니앨범 미리보기">
+      <div ref={box} className="jp-slide" style={vars} role="img" aria-label="미니앨범 미리보기">
         {bg && <img key={i} src={bg} alt="" className={`jp-slide-img ${s.kind !== 'photo' ? 'dim' : ''}`} />}
+        {s.kind !== 'photo' && <div className="jp-slide-bgfill" />}
         {s.kind === 'title' && <div className="jp-slide-text"><h2>{title}</h2><p>{subtitle}</p><small>제주픽 미니앨범</small></div>}
         {s.kind === 'end' && <div className="jp-slide-text"><h2>감사합니다</h2><small>제주픽으로 만든 미니앨범</small></div>}
         {s.kind === 'photo' && s.caption && <div className="jp-slide-cap">{s.caption}</div>}
@@ -55,6 +59,8 @@ export default function Album() {
   const [err, setErr] = useState('')
   const [msg, setMsg] = useState('')
   const [downloaded, setDownloaded] = useState(false)
+  const [tpl, setTpl] = useState('classic') // 미니앨범 디자인(템플릿)
+  const [tplManual, setTplManual] = useState(false) // 사용자가 직접 골랐으면 자동 추천이 덮어쓰지 않는다
   const idle = useRef(null)
 
   // 모두 삭제 — 사진·문구·슬라이드는 이 화면의 메모리에만 있어서 상태를 비우면 끝난다
@@ -63,6 +69,8 @@ export default function Album() {
     setTitle('제주 미니앨범')
     setSubtitle('')
     setDownloaded(false)
+    setTpl('classic')
+    setTplManual(false)
     setErr('')
     setMsg(why)
   }, [])
@@ -100,6 +108,16 @@ export default function Album() {
     } catch (e) { setErr(e.message) } finally { setBusy('') }
   }
 
+  // 사진이 바뀌면 색을 분석해 템플릿을 자동 추천 (직접 고른 뒤에는 건드리지 않는다)
+  const photoKey = items.map((x) => x.id).join(',')
+  useEffect(() => {
+    if (!items.length || tplManual) return undefined
+    let alive = true
+    recommendTemplate(items.map((x) => x.small)).then((t) => { if (alive) setTpl(t) })
+    return () => { alive = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [photoKey, tplManual])
+
   const move = (idx, d) => setItems((cur) => { const a = [...cur]; const j = idx + d; if (j < 0 || j >= a.length) return a; [a[idx], a[j]] = [a[j], a[idx]]; return a })
   const remove = (id) => setItems((cur) => cur.filter((x) => x.id !== id))
   const setCaption = (id, caption) => setItems((cur) => cur.map((x) => (x.id === id ? { ...x, caption } : x)))
@@ -111,6 +129,7 @@ export default function Album() {
       const r = await makeAlbumCaptions(items.map((x) => x.small))
       setTitle(r.title || title)
       setSubtitle(r.subtitle || '')
+      if (r.template && !tplManual) setTpl(r.template)
       setItems((cur) => cur.map((x, i) => ({ ...x, caption: r.captions?.[i] || x.caption, ok: r.photoSpotOk?.[i] !== false, note: r.notes?.[i] || '' })))
       setMsg('AI가 제목과 문구를 만들었어요. 마음에 안 들면 직접 고칠 수 있어요.')
     } catch (e) { setErr(`${e.message} — 문구는 직접 적어도 앨범을 만들 수 있어요.`) } finally { setBusy('') }
@@ -120,7 +139,7 @@ export default function Album() {
     setErr(''); setMsg('')
     setBusy('pptx')
     try {
-      await downloadAlbumPptx({ title, subtitle, items, fileName: `${title.replace(/[\\/:*?"<>|]/g, '').trim() || '제주-미니앨범'}.pptx` })
+      await downloadAlbumPptx({ title, subtitle, items, fileName: `${title.replace(/[\\/:*?"<>|]/g, '').trim() || '제주-미니앨범'}.pptx`, template: tpl })
       setDownloaded(true)
       setMsg('PPT를 내려받았어요. 이 페이지를 나가면 사진과 슬라이드는 모두 삭제돼요.')
     } catch (e) { setErr(`PPT를 만들지 못했어요: ${e.message}`) } finally { setBusy('') }
@@ -183,7 +202,16 @@ export default function Album() {
 
             <div className="jp-panel mb-3">
               <div className="jp-eyebrow mb-2">3. 미리보기</div>
-              <Slideshow title={title} subtitle={subtitle} items={items} />
+              <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
+                <span className="small fw-semibold"><i className="bi bi-palette me-1" />디자인</span>
+                {Object.entries(ALBUM_TEMPLATES).map(([id, t]) => (
+                  <button key={id} type="button" className={`jp-month ${tpl === id ? 'on' : ''}`} onClick={() => { setTpl(id); setTplManual(true) }} title={t.desc}>
+                    <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 3, background: `#${t.accent}`, marginRight: 6 }} />{t.label}
+                  </button>
+                ))}
+                <span className="small text-muted">{tplManual ? '직접 고른 디자인' : '사진 색에 맞춰 자동으로 추천했어요'} · 자동 재생은 장당 1.5초</span>
+              </div>
+              <Slideshow title={title} subtitle={subtitle} items={items} template={tpl} />
             </div>
 
             <div className="jp-panel">

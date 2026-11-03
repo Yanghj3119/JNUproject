@@ -25,7 +25,8 @@ const SYSTEM = `너는 제주 여행 사진으로 미니 앨범(슬라이드쇼)
 - 제목은 15자 안팎, 부제는 한 문장.
 - 사진에 제주와 관련 없는 내용이 있어도 사진에 보이는 대로만 쓴다.
 반드시 아래 JSON 한 개만 출력한다. 다른 글자나 코드블록 표시는 쓰지 않는다.
-{"title":"앨범 제목","subtitle":"부제","captions":["1번 사진 문구","2번 사진 문구", "..."],"photoSpotOk":[true,true,...],"notes":["장당 한마디 주의사항(없으면 빈 문자열)"]}
+{"title":"앨범 제목","subtitle":"부제","template":"classic","captions":["1번 사진 문구","2번 사진 문구", "..."],"photoSpotOk":[true,true,...],"notes":["장당 한마디 주의사항(없으면 빈 문자열)"]}
+template 은 사진 전체의 분위기에 맞는 앨범 디자인으로 sunset(노을·따뜻한 주황빛), ocean(바다·하늘의 파란빛), forest(숲·오름의 초록빛), classic(그 밖이거나 섞여 있을 때) 중 하나만 쓴다.
 photoSpotOk 는 사진이 모두에게 공개되는 포토 스팟에 올려도 무난한지(제주 풍경이고, 사람 얼굴이 크게 나오거나 부적절한 내용이 없는지)를 장마다 true/false 로 적는다.`
 
 function parseJson(text) {
@@ -67,6 +68,7 @@ export default async function handler(req, res) {
     res.status(200).json({
       title: String(j.title ?? '제주 미니앨범').slice(0, 40),
       subtitle: String(j.subtitle ?? '').slice(0, 80),
+      template: ['sunset', 'ocean', 'forest', 'classic'].includes(j.template) ? j.template : null,
       captions: fit(j.captions, '').map((c) => String(c ?? '').slice(0, 60)),
       photoSpotOk: fit(j.photoSpotOk, true).map(Boolean),
       notes: fit(j.notes, '').map((c) => String(c ?? '').slice(0, 80)),
