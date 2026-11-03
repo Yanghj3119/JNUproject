@@ -164,6 +164,18 @@ export default function Album() {
     } catch (e) { setErr(`${e.message} — 문구는 직접 적어도 앨범을 만들 수 있어요.`) } finally { setBusy('') }
   }
 
+  // 사진 한 장의 문구만 AI에게 맡긴다 (제목·다른 사진 문구는 건드리지 않는다)
+  const askOne = async (x) => {
+    setErr(''); setMsg('')
+    setBusy(`ai:${x.id}`)
+    try {
+      const r = await makeAlbumCaptions([x.small], { tone, hints: [{ place: x.place, date: x.date }] })
+      const c = r.captions?.[0]
+      if (!c) throw new Error('문구를 만들지 못했어요')
+      setCaption(x.id, c)
+    } catch (e) { setErr(`${e.message} — 문구는 직접 적어도 앨범을 만들 수 있어요.`) } finally { setBusy('') }
+  }
+
   const [vprog, setVprog] = useState(0)
   const downloadVideo = async () => {
     setErr(''); setMsg(''); setVprog(0)
@@ -210,8 +222,14 @@ export default function Album() {
                 <div key={x.id} className="d-flex gap-2 align-items-start border rounded-3 p-2 bg-white">
                   <img src={x.dataUrl} alt={x.name} style={{ width: 96, height: 72, objectFit: 'cover', borderRadius: 8 }} />
                   <div className="flex-grow-1 min-w-0">
-                    <input className="form-control form-control-sm" placeholder={`${idx + 1}번 사진 문구 (직접 쓰거나 AI에게 맡기세요)`} value={x.caption} maxLength={60}
-                      onChange={(e) => setCaption(x.id, e.target.value)} aria-label={`${idx + 1}번 사진 문구`} />
+                    <div className="input-group input-group-sm">
+                      <input className="form-control" placeholder={`${idx + 1}번 사진 문구 (직접 쓰거나 AI에게 맡기세요)`} value={x.caption} maxLength={60}
+                        onChange={(e) => setCaption(x.id, e.target.value)} aria-label={`${idx + 1}번 사진 문구`} />
+                      <button type="button" className="btn btn-outline-sea" onClick={() => askOne(x)} disabled={busy !== '' || !user}
+                        title={user ? '이 사진의 문구를 AI가 써 줘요 (아래 어조 선택을 따라요)' : '로그인하면 AI 문구를 쓸 수 있어요'}>
+                        {busy === `ai:${x.id}` ? <span className="spinner-border spinner-border-sm" /> : <><i className="bi bi-stars me-1" />AI 문구</>}
+                      </button>
+                    </div>
                     <div className="d-flex flex-wrap gap-2 mt-1">
                       <input className="form-control form-control-sm" style={{ width: 128 }} placeholder="날짜 2026.11.03" value={x.date || ''} maxLength={12} onChange={(e) => setField(x.id, 'date', e.target.value)} aria-label={`${idx + 1}번 사진 날짜`} />
                       <input className="form-control form-control-sm" style={{ width: 200 }} placeholder="장소 (예: 서귀포시 성산읍)" value={x.place || ''} maxLength={20} onChange={(e) => setField(x.id, 'place', e.target.value)} aria-label={`${idx + 1}번 사진 장소`} />
