@@ -28,9 +28,12 @@ export const isDefaultEdit = (e) => JSON.stringify({ ...DEFAULT_EDIT, ...e }) ==
 
 // ── AI 없이 해석하는 자주 쓰는 말 (토큰 0) ───────────────────────────
 // 반환: { ops, done:[적용한 항목 이름] } 또는 알아듣지 못하면 null
+const OBJECT_WORDS = /하늘|바다|구름|배경|산(?!뜻)|오름|나무|꽃|풀|잔디|물빛|사람|얼굴|인물|피부|음식|건물|지워|없애|바꿔|합성|추가해|넣어/
 export function parseLocal(text) {
   const t = String(text ?? '').replace(/\s+/g, ' ').trim()
   if (!t) return null
+  // 사진의 특정 부분(하늘·바다·사람 등)을 콕 집은 요청이나 지우기·바꾸기·합성은 전체 보정으로 흉내 내면 틀리기 쉬워서 AI 에게 넘긴다
+  if (OBJECT_WORDS.test(t)) return null
   const big = /많이|확|훨씬|아주|엄청|진하게/.test(t)
   const small = /조금|살짝|약간|은은/.test(t)
   const step = big ? 30 : small ? 8 : 18

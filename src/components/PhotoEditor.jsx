@@ -85,16 +85,18 @@ export default function PhotoEditor({ items, onChange, user }) {
     setText('')
     setChat((c) => [...c, { role: 'me', text: q }].slice(-6))
     const local = parseLocal(q)
-    if (local) return apply(local.ops, `${local.done.join(', ')} 적용했어요. (AI 없이 처리)`)
+    if (local) return apply(local.ops, `${local.done.join(', ')} 적용했어요. (AI 없이 처리 · 횟수 차감 없음)`)
     if (!user) return setChat((c) => [...c, { role: 'ai', text: '이 요청은 AI가 필요해요. 로그인하면 하루 10번까지 쓸 수 있어요.' }])
     if (left === 0) return setChat((c) => [...c, { role: 'ai', text: '오늘 AI 편집을 모두 썼어요. 슬라이더·필터·예시 버튼은 계속 쓸 수 있어요.' }])
     setBusy(true)
     try {
       const history = chat.slice(-4).map((m) => ({ role: m.role === 'me' ? 'user' : 'ai', text: m.text }))
       const r = await editPhotoWithAi({ text: q, edit: cur.edit ?? DEFAULT_EDIT, image: /사진|하늘|바다|배경|색|느낌|분위기|어둡|밝/.test(q) ? cur.small : undefined, history })
-      setLeft(typeof r.left === 'number' ? r.left : left)
-      if (r.ops && Object.keys(r.ops).length) apply(r.ops, r.reply || '적용했어요.')
-      else setChat((c) => [...c, { role: 'ai', text: r.reply || '이 요청은 적용할 수 있는 보정이 없어요.' }].slice(-6))
+      const nl = typeof r.left === 'number' ? r.left : null
+      if (nl !== null) setLeft(nl)
+      const tail = nl !== null ? ` (AI 사용 · 오늘 ${nl}회 남음)` : ' (AI 사용)'
+      if (r.ops && Object.keys(r.ops).length) apply(r.ops, `${r.reply || '적용했어요.'}${tail}`)
+      else setChat((c) => [...c, { role: 'ai', text: `${r.reply || '이 요청은 적용할 수 있는 보정이 없어요.'}${tail}` }].slice(-6))
     } catch (e) {
       if (typeof e.left === 'number') setLeft(e.left)
       setChat((c) => [...c, { role: 'ai', text: e.message }].slice(-6))
