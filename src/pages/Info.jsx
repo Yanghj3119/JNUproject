@@ -475,7 +475,7 @@ export default function Info() {
         img="/images/jeju-stonewall.jpg" pos="50% 70%" eyebrow="여행 정보" title="떠나기 전에 확인하세요"
         sub="버스 도착·위치, 공항·여객선 운항 스케줄, 렌터카 위치, 올레길·한라산 둘레길, 숙박을 공공데이터로 확인하고 지도에서 위치를 볼 수 있어요."
       />
-      <Container className="pt-4">
+      <Container className="pt-4 jp-info">
         <div className="jp-tabs" style={{ overflowX: 'auto' }}>
           {TABS.map((t) => (
             <button key={t.id} type="button" className={`jp-tab ${tab === t.id ? 'on' : ''}`} style={{ whiteSpace: 'nowrap' }} onClick={() => setTab(t.id)}>

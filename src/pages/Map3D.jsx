@@ -15,7 +15,7 @@ import PlaceCard from '../components/PlaceCard'
 import Status from '../components/Status'
 import WeatherBadge from '../components/WeatherBadge'
 
-const TYPES = ['12', '14', '15', '39', 'oreum', 'museum', 'souvenir'] // 숫자: 한국관광공사 / 문자: 제주데이터허브
+const TYPES = ['12', '14', '39', 'oreum', 'museum', 'souvenir'] // 숫자: 한국관광공사 / 문자: 제주데이터허브
 
 // 날씨 미리보기: 실제 날씨 대신 원하는 날씨·시간대를 3D 로 시험해 볼 수 있다 (발표·시연용)
 const WX_MODES = [

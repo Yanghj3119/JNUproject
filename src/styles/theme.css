@@ -324,3 +324,10 @@ button.jp-pick.on { border-color: var(--jp-ink); box-shadow: inset 0 0 0 1px var
 .jp-mic.on { background: #d6336c; border-color: #d6336c; color: #fff; animation: jp-pulse 1.1s ease-in-out infinite; }
 @keyframes jp-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(214, 51, 108, 0.45); } 50% { box-shadow: 0 0 0 8px rgba(214, 51, 108, 0); } }
 @media (prefers-reduced-motion: reduce) { .jp-mic.on { animation: none; } }
+
+/* 여행 정보: 검색·선택 입력칸이 배경에 묻히지 않게 흰 배경과 진한 테두리를 준다 */
+.jp-info .form-control, .jp-info .form-select { background-color: #fff; border: 2px solid #7c97a3; color: var(--jp-ink); font-weight: 500; box-shadow: 0 1px 2px rgba(15, 26, 32, 0.08); }
+.jp-info .form-control::placeholder { color: #6b8591; font-weight: 400; }
+.jp-info .form-control:focus, .jp-info .form-select:focus { border-color: var(--jp-sea); box-shadow: 0 0 0 3px rgba(14, 111, 122, 0.22); }
+.jp-info .form-select { padding-right: 2.25rem; }
+.jp-info .btn-group .btn-outline-sea { background-color: #fff; border-width: 2px; }
