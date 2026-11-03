@@ -46,11 +46,11 @@ export const useAppStore = create((set, get) => ({
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) throw error
   },
-  // 카카오 로그인 — Supabase 의 Kakao provider 로 이동 → 카카오 로그인 → /my 로 돌아옴
+  // 카카오 로그인 — Supabase 의 Kakao provider 로 이동 → 카카오 로그인 → 홈(/)으로 돌아옴
   signInKakao: async () => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'kakao',
-      options: { redirectTo: `${window.location.origin}/my` },
+      options: { redirectTo: `${window.location.origin}/` },
     })
     if (error) throw error
   },

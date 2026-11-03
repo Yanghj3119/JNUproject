@@ -28,7 +28,7 @@ export default function Login() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
 
-  if (user) return <Navigate to="/my" replace />
+  if (user) return <Navigate to="/" replace />
 
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value })
 
@@ -45,11 +45,11 @@ export default function Login() {
       if (mode === 'in') {
         await signIn(form)
         toast('로그인했어요')
-        nav('/my')
+        nav('/')
       } else {
         const { needsConfirm } = await signUp(form)
         if (needsConfirm) setNotice('가입 확인 메일을 보냈어요. 메일의 링크를 누른 뒤 로그인해 주세요.')
-        else { toast('가입을 환영해요'); nav('/my') }
+        else { toast('가입을 환영해요'); nav('/') }
       }
     } catch (err) {
       setError(korean(err.message))
