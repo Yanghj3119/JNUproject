@@ -46,4 +46,4 @@ export default route(async () => {
     time('제주데이터허브 (한라산 둘레길)', () => getTrails({})),
   ])
   return { checks, keys: { dataGoKr: Boolean(process.env.DATA_GO_KR_KEY), jejuHub: Boolean(process.env.JEJU_DATAHUB_KEY), anthropic: Boolean(process.env.ANTHROPIC_API_KEY) } }
-})
+}, { ttl: 300 }) // 점검 한 번에 API 13개를 부르므로 5분간은 같은 결과를 보여 준다 (공공데이터 일일 호출 한도 절약)
