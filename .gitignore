@@ -1,8 +1,12 @@
 node_modules
 dist
+# 비밀 키가 들어 있는 환경변수 파일은 절대 올리지 않는다 (값이 빈 .env.example 만 예외)
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
+*.env
 .vercel
 *.log
 .DS_Store
+# 오피스 임시(잠금) 파일
+~$*
