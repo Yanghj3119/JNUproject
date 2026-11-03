@@ -9,6 +9,7 @@ const SYSTEM = `너는 제주를 처음 여행하는 관광객을 돕는 여행 
 - 비가 오거나 강수확률이 높으면 실내 대안을 함께 제안한다.
 - 코스·일정·동선 요청에는 장소를 도구로 확인한 뒤 가까운 순서로 3~6곳을 묶어 propose_route 를 호출한다. 호출한 뒤에는 코스가 화면에 표시되므로 장소별 설명을 반복하지 말고 핵심 팁만 짧게 말한다.
 - 위시리스트: 사용자가 담아 둔 장소 목록을 주면 그 장소들을 우선해서 한 코스(최대 8곳)에 모두 넣는다. 사진 제목처럼 보이는 이름("다랑쉬오름의 아침")은 도구로 실제 장소를 확인해 넣고, 위치를 못 찾으면 그 곳만 말로 안내한다. 목록에 없는 장소는 사용자가 원할 때만 덧붙인다.
+- 위시리스트·여러 장소 요청: 장소 확인은 모든 장소를 첫 응답에서 한꺼번에(병렬로) 호출한다. 못 찾은 장소는 이름을 바꿔 다시 찾지 말고 곧바로 "찾지 못했다"고 말로 안내한 뒤, 찾은 장소들로 propose_route 를 호출해 코스를 끝낸다. 도구를 모두 쓰고도 코스 없이 끝내는 일이 없게 한다.
 - 효율: 서로 독립적인 도구는 한 번의 응답에서 함께 호출한다. 코스 요청은 보통 장소 확인 → 날씨·교통 확인 → propose_route 의 3~4단계면 충분하다. 같은 도구를 같은 인자로 반복하지 않고, get_photo_info 는 촬영지가 꼭 필요할 때만 쓴다. 장소를 못 찾았다는 결과가 나오면 다른 이름으로 한 번만 다시 시도하고, 그래도 없으면 그 장소는 말로만 안내한다.
 - 한적한 날이 궁금하면 혼잡도 도구를 쓴다. 해수욕장 수질처럼 도구에 없는 정보는 모른다고 말한다.
 - 언어 규칙: 사용자가 영어·중국어·일본어로 물으면 같은 언어로 답하고, 그 외에는 한국어로 답한다. 한 대화에서 사용자가 언어를 바꾸면 바뀐 언어를 따른다.
@@ -58,14 +59,20 @@ export default async function handler(req, res) {
   const messages = [...history.slice(-10), { role: 'user', content: message }] // 최근 10개만 보내 비용 절약
   const steps = [] // 화면에 "AI가 호출한 도구"를 보여주기 위한 기록
   let route = null // propose_route 결과 — 화면에 코스로 표시
+  const seen = new Set() // 같은 도구를 같은 인자로 또 부르지 않게
+  const MAX_TURNS = 8
 
   try {
     // 에이전트 루프: 생각 → 도구 호출 → 결과 확인 → (반복) → 최종 답
-    for (let turn = 0; turn < 8; turn++) {
-      const r = await client.messages.create({ model: MODEL, max_tokens: 1200, system: SYSTEM, tools, messages })
+    for (let turn = 0; turn < MAX_TURNS; turn++) {
+      // 마지막 차례에는 도구를 못 쓰게 해서, 도구만 부르다 답 없이 끝나는 일을 막는다
+      const last = turn === MAX_TURNS - 1
+      const r = await client.messages.create({ model: MODEL, max_tokens: 1200, system: SYSTEM, tools, ...(last ? { tool_choice: { type: 'none' } } : {}), messages })
 
       if (r.stop_reason !== 'tool_use') {
-        const answer = r.content.filter((b) => b.type === 'text').map((b) => b.text).join('\n')
+        const text = r.content.filter((b) => b.type === 'text').map((b) => b.text).join('\n').trim()
+        // 답 글자가 비어 있어도 화면이 비지 않게 한다
+        const answer = text || (route ? '코스를 만들었어요. 아래 코스를 확인해 주세요.' : '답을 정리하지 못했어요. 위의 도구 결과를 참고하시거나 질문을 조금 바꿔 다시 물어봐 주세요.')
         return res.status(200).json({ answer, steps, route })
       }
 
@@ -74,7 +81,12 @@ export default async function handler(req, res) {
       for (const block of r.content) {
         if (block.type !== 'tool_use') continue
         let result
-        try { result = await runTool[block.name](block.input ?? {}) } catch (e) { result = { error: e.message } }
+        const key = `${block.name}:${JSON.stringify(block.input ?? {})}`
+        if (seen.has(key)) result = { error: '같은 호출을 이미 했어요. 다른 방법을 쓰거나 지금까지의 결과로 답하세요.' }
+        else {
+          seen.add(key)
+          try { result = await runTool[block.name](block.input ?? {}) } catch (e) { result = { error: e.message } }
+        }
 
         let forModel = result
         if (block.name === 'propose_route' && result?.stops) {
@@ -90,9 +102,11 @@ export default async function handler(req, res) {
         })
         results.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(forModel) })
       }
+      // 남은 차례가 2번 이하면 더 찾지 말고 마무리하라고 알려 준다
+      if (turn >= MAX_TURNS - 3) results.push({ type: 'text', text: route ? '코스를 이미 만들었으니 도구 없이 핵심 팁만 짧게 답하세요.' : '이제 도구를 더 쓰지 말고, 찾은 장소로 코스를 만들거나(propose_route) 못 찾은 곳은 말로 안내해 답을 마무리하세요.' })
       messages.push({ role: 'user', content: results })
     }
-    res.status(200).json({ answer: '도구 호출이 너무 많아 중단했어요. 질문을 좁혀 주세요.', steps, route })
+    res.status(200).json({ answer: '확인할 내용이 많아 여기까지만 정리했어요. 위의 호출 결과를 참고하거나, 장소를 나눠서 다시 물어봐 주세요.', steps, route })
   } catch (e) {
     res.status(e.status ?? 500).json({ error: e.status === 429 ? '사용량이 많아요. 1분 뒤 다시 시도하세요.' : e.message })
   }
