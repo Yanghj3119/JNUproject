@@ -4,9 +4,12 @@ import { Container } from 'react-bootstrap'
 import { makeAlbumCaptions } from '../api/client'
 import { ALBUM_TEMPLATES, shrinkImage, downloadAlbumPptx, recommendTemplate, templateForMood, templateOf, readPhotoMeta, checkPhotoQuality } from '../lib/albumTools'
 import { reverseRegion } from '../lib/kakaoGeo'
+import { makeAlbumVideo, saveBlob, canMakeVideo } from '../lib/albumVideo'
 import { renderAlbumPages } from '../lib/albumRender'
 import { useAppStore } from '../store/useAppStore'
 import PageBanner from '../components/PageBanner'
+import PhotoEditor from '../components/PhotoEditor'
+import { DEFAULT_EDIT } from '../lib/photoEdit'
 
 const MAX = 5
 const SLIDE_MS = 1500 // 한 장면에 머무는 시간 (1~2초)
@@ -106,7 +109,7 @@ export default function Album() {
         const meta = await readPhotoMeta(f)
         const place = meta.lat != null ? ((await reverseRegion(meta.lat, meta.lng)) || '') : ''
         const warn = await checkPhotoQuality(full.dataUrl)
-        added.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, name: f.name, ...full, small: small.dataUrl, caption: '', ok: true, note: '', date: meta.date, place, warn })
+        added.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, name: f.name, ...full, small: small.dataUrl, origFull: full.dataUrl, edit: DEFAULT_EDIT, rev: 0, caption: '', ok: true, note: '', date: meta.date, place, warn })
       }
       setItems((cur) => [...cur, ...added])
       setDownloaded(false)
@@ -124,7 +127,7 @@ export default function Album() {
   }, [photoKey, tplManual])
 
   // 사진·문구·제목·디자인이 바뀌면 페이지를 다시 그린다 (입력 중에는 잠깐 기다렸다가)
-  const renderKey = JSON.stringify([items.map((x) => [x.id, x.caption, x.place, x.date]), title, subtitle, tpl])
+  const renderKey = JSON.stringify([items.map((x) => [x.id, x.rev, x.caption, x.place, x.date]), title, subtitle, tpl])
   useEffect(() => {
     if (!items.length) { setPages([]); return undefined }
     let alive = true
@@ -142,6 +145,7 @@ export default function Album() {
   const move = (idx, d) => setItems((cur) => { const a = [...cur]; const j = idx + d; if (j < 0 || j >= a.length) return a; [a[idx], a[j]] = [a[j], a[idx]]; return a })
   const remove = (id) => setItems((cur) => cur.filter((x) => x.id !== id))
   const setCaption = (id, caption) => setItems((cur) => cur.map((x) => (x.id === id ? { ...x, caption } : x)))
+  const patchItem = useCallback((id, patch) => setItems((cur) => cur.map((x) => (x.id === id ? { ...x, ...patch } : x))), [])
   const setField = (id, key, value) => setItems((cur) => cur.map((x) => (x.id === id ? { ...x, [key]: value } : x)))
   const applyOrder = () => { if (orderSuggest) setItems((cur) => orderSuggest.map((i) => cur[i]).filter(Boolean)); setOrderSuggest(null) }
 
@@ -160,6 +164,18 @@ export default function Album() {
     } catch (e) { setErr(`${e.message} — 문구는 직접 적어도 앨범을 만들 수 있어요.`) } finally { setBusy('') }
   }
 
+  const [vprog, setVprog] = useState(0)
+  const downloadVideo = async () => {
+    setErr(''); setMsg(''); setVprog(0)
+    setBusy('video')
+    try {
+      const blob = await makeAlbumVideo({ pages, onProgress: setVprog })
+      saveBlob(blob, `${title.replace(/[\/:*?"<>|]/g, '').trim() || '제주-미니앨범'}.mp4`)
+      setDownloaded(true)
+      setMsg('영상을 내려받았어요. 휴대폰 갤러리에서 바로 재생할 수 있어요. 이 페이지를 나가면 사진과 슬라이드는 모두 삭제돼요.')
+    } catch (e) { setErr(`영상을 만들지 못했어요: ${e.message}`) } finally { setBusy('') }
+  }
+
   const download = async () => {
     setErr(''); setMsg('')
     setBusy('pptx')
@@ -172,12 +188,12 @@ export default function Album() {
 
   return (
     <>
-      <PageBanner img="/images/jeju-chairs.jpg" pos="50% 60%" eyebrow="미니앨범" title="내 사진으로 미니앨범 만들기"
-        sub="사진 최대 5장으로 슬라이드쇼를 만들고 PPT로 내려받아요. 사진은 서버에 저장되지 않고, 내려받지 않고 나가면 모두 삭제돼요." />
+      <PageBanner img="/images/jeju-chairs.jpg" pos="50% 60%" eyebrow="사진 편집" title="AI로 내 사진 다듬기"
+        sub="사진 최대 5장을 슬라이더·필터·말로 다듬어 저장하고, 원하면 앨범·영상으로도 만들어요. 사진은 서버에 저장되지 않고, 나가면 모두 삭제돼요." />
       <Container className="pt-4 pb-5 jp-info">
         <div className="alert alert-light border small">
           <i className="bi bi-shield-check me-1 text-jp" />
-          사진은 <b>이 브라우저 안에서만</b> 처리돼요. 사진 파일에 든 촬영 날짜와 위치(읍·면·동까지만)는 앨범 페이지에 넣으려고 이 브라우저에서 읽어요. AI 문구를 만들 때만 줄인 사진과 그 날짜·지명 글자가 AI에게 전달되고, 저장되지 않아요. 얼굴이나 개인정보가 나온 사진은 주의해서 올려 주세요.
+          사진은 <b>이 브라우저 안에서만</b> 처리돼요. 사진 파일에 든 촬영 날짜와 위치(읍·면·동까지만)는 앨범 페이지에 넣으려고 이 브라우저에서 읽어요. AI 편집·문구를 요청할 때만 요청 문장(과 줄인 사진 한 장)이 AI에게 전달되고, 저장되지 않아요. 얼굴이나 개인정보가 나온 사진은 주의해서 올려 주세요.
         </div>
 
         {err && <div className="alert alert-warning py-2">{err}</div>}
@@ -217,7 +233,12 @@ export default function Album() {
         {items.length > 0 && (
           <>
             <div className="jp-panel mb-3">
-              <div className="jp-eyebrow mb-1">2. 제목과 문구</div>
+              <div className="jp-eyebrow mb-2">2. 사진 다듬기</div>
+              <PhotoEditor items={items} onChange={patchItem} user={user} />
+            </div>
+
+            <div className="jp-panel mb-3">
+              <div className="jp-eyebrow mb-1">3. 앨범으로 만들기 (선택) · 제목과 문구</div>
               <div className="d-flex flex-wrap gap-2 mb-2">
                 <input className="form-control" style={{ maxWidth: 320 }} placeholder="앨범 제목" value={title} maxLength={40} onChange={(e) => setTitle(e.target.value)} aria-label="앨범 제목" />
                 <input className="form-control" style={{ maxWidth: 420 }} placeholder="부제 (선택)" value={subtitle} maxLength={80} onChange={(e) => setSubtitle(e.target.value)} aria-label="부제" />
@@ -244,7 +265,7 @@ export default function Album() {
             </div>
 
             <div className="jp-panel mb-3">
-              <div className="jp-eyebrow mb-2">3. 미리보기</div>
+              <div className="jp-eyebrow mb-2">4. 앨범 미리보기</div>
               <div className="mb-2">
                 {['album', 'minimal'].map((g) => (
                   <div key={g} className="d-flex flex-wrap align-items-center gap-2 mb-1">
@@ -262,15 +283,20 @@ export default function Album() {
             </div>
 
             <div className="jp-panel">
-              <div className="jp-eyebrow mb-2">4. 내려받기 또는 삭제</div>
+              <div className="jp-eyebrow mb-2">5. 앨범·영상 내려받기 또는 삭제</div>
               <div className="d-flex flex-wrap gap-2">
-                <button type="button" className="btn btn-primary" onClick={download} disabled={busy !== '' || rendering || !pages.length}>
+                <button type="button" className="btn btn-outline-sea" onClick={download} disabled={busy !== '' || rendering || !pages.length}>
                   {busy === 'pptx' ? <><span className="spinner-border spinner-border-sm me-2" />PPT 만드는 중…</> : <><i className="bi bi-download me-1" />PPT로 내려받기 (.pptx)</>}
                 </button>
+                {canMakeVideo() && (
+                  <button type="button" className="btn btn-primary" onClick={downloadVideo} disabled={busy !== '' || rendering || !pages.length}>
+                    {busy === 'video' ? <><span className="spinner-border spinner-border-sm me-2" />영상 만드는 중… {Math.round(vprog * 100)}%</> : <><i className="bi bi-film me-1" />영상으로 저장 (.mp4)</>}
+                  </button>
+                )}
                 <button type="button" className="btn btn-outline-sea" onClick={() => wipe('사진과 슬라이드를 모두 삭제했어요.')} disabled={busy !== ''}><i className="bi bi-trash me-1" />모두 삭제</button>
               </div>
               <div className="small text-muted mt-2">
-                PPT에는 장당 1.5초 자동 넘김과 페이드 전환이 들어 있어서, 슬라이드쇼를 시작하면 앨범처럼 저절로 넘어가요.<br />
+                영상(.mp4)은 휴대폰 갤러리에서 바로 재생돼요(약 2초씩 부드럽게 넘어가요). PPT에는 장당 1.5초 자동 넘김과 페이드 전환이 들어 있어서, 슬라이드쇼를 시작하면 앨범처럼 저절로 넘어가요.<br />
                 {downloaded ? '내려받았어요. 이 페이지를 나가거나 15분이 지나면 사진과 슬라이드는 삭제돼요.' : '내려받지 않고 이 페이지를 나가거나 15분이 지나면 사진과 슬라이드는 자동으로 삭제돼요.'}
               </div>
             </div>

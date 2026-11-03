@@ -36,4 +36,24 @@ export const fetchTransit = (kind, params = {}) => get('/api/transit', { kind, .
 export const fetchHealth = () => get('/api/health')
 // 미니앨범 제목·문구 (사진은 저장되지 않음). options: { tone, hints:[{place,date}] }
 export const makeAlbumCaptions = (images, options = {}) => post('/api/album', { images, ...options })
+// 사진 AI 편집: 로그인 토큰을 같이 보내 서버가 사용 횟수(1인 하루 10회)를 센다
+export async function editPhotoWithAi({ text, edit, image, history }) {
+  const { supabase } = await import('../lib/supabase')
+  const token = (await supabase?.auth.getSession())?.data?.session?.access_token
+  const r = await fetch('/api/album', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify({ action: 'edit', text, edit, image, history }),
+  })
+  const data = await r.json().catch(() => ({}))
+  if (!r.ok) { const e = new Error(data.error || '요청에 실패했어요'); e.left = data.left; throw e }
+  return data
+}
+// 오늘 남은 AI 편집 횟수 (SQL 을 아직 안 만들었거나 로그인 전이면 null)
+export async function aiEditLeft() {
+  const { supabase } = await import('../lib/supabase')
+  if (!supabase) return null
+  const { data, error } = await supabase.rpc('ai_edit_left')
+  return error || !data?.ok ? null : data
+}
 export const askAgent =(message, history) => post('/api/agent', { message, history })

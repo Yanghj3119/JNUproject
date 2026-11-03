@@ -359,6 +359,7 @@ function LodgingTab() {
 }
 
 // ── 제주올레길 ───────────────────────────────────────────────
+// 코스 번호·이름·시점·종점·거리·소요시간·휠체어 여부는 제주데이터허브 "올레길 위치 정보"를 scripts/bake-olle.mjs 로 합쳐 둔 값이다.
 // 두루누비·공공데이터포털에는 제주올레 경로 데이터가 없어서, OpenStreetMap 에 기록된 코스(1~6, 16, 18, 19코스)는 실제 경로선으로 그리고
 // 나머지 코스는 시점·종점만 점선으로 이어 보여 준다. 시점·종점 좌표는 카카오 장소 검색 결과를 미리 저장해 두었다 (public/data/olle.json).
 const OLLE_SITE = 'https://www.jejuolle.org/'
@@ -401,7 +402,7 @@ function OlleTab() {
                     <span className="fw-semibold">{c.name}</span>
                   </div>
                   <div className="small text-muted mt-1">{c.title}</div>
-                  <div className="small">{c.km != null ? `약 ${c.km}km` : <span className="text-muted">거리 정보 없음</span>}</div>
+                  <div className="small">{c.km != null ? `${c.km}km` : <span className="text-muted">거리 정보 없음</span>}{c.hours && <span className="text-muted"> · {c.hours}시간</span>}{c.wheelchair && <i className="bi bi-person-wheelchair ms-1 text-primary" title="휠체어 이용 가능 코스" />}</div>
                 </button>
               </Col>
             ))}
@@ -426,22 +427,27 @@ function OlleTab() {
                 )}
                 <div className="small text-muted mt-2">
                   {traced
-                    ? `선택한 ${cur.name}는 OpenStreetMap에 기록된 올레길 경로를 그렸고, 거리는 그 경로를 잰 값(약 ${cur.km}km)이라 공식 안내와 조금 다를 수 있어요.`
-                    : `${cur.name}는 경로 데이터가 없어 시점과 종점을 점선으로만 이었어요. 실제 올레길 경로와 거리는 제주올레 공식 안내를 확인하세요.`}
+                    ? `선택한 ${cur.name}는 OpenStreetMap에 기록된 올레길 경로를 그렸어요. 거리·소요 시간은 제주데이터허브 올레길 정보 기준이에요.`
+                    : `${cur.name}는 경로 데이터가 없어 시점${cur.loop ? '(시점과 종점이 같은 순환 코스)' : '과 종점'}을 점선으로만 이었어요. 거리·소요 시간은 제주데이터허브 올레길 정보 기준이고, 실제 경로는 제주올레 공식 안내를 확인하세요.`}
                 </div>
               </Col>
               <Col lg={4}>
                 <div className="jp-panel">
                   <div className="jp-eyebrow mb-1">선택한 코스</div>
                   <h2 className="h5 fw-bold mb-1">제주올레 {cur.name}</h2>
-                  <div className="text-muted mb-3">{cur.title}{cur.km != null ? ` · 약 ${cur.km}km` : ''}</div>
+                  <div className="text-muted mb-2">{cur.fullName || cur.title}</div>
+                  <div className="d-flex flex-wrap gap-2 mb-3 small">
+                    {cur.km != null && <span className="badge text-bg-light border"><i className="bi bi-rulers me-1" />{cur.km}km</span>}
+                    {cur.hours && <span className="badge text-bg-light border"><i className="bi bi-clock me-1" />약 {cur.hours}시간</span>}
+                    {cur.wheelchair && <span className="badge text-bg-primary"><i className="bi bi-person-wheelchair me-1" />휠체어 코스</span>}
+                  </div>
                   <div className="jp-stop"><span className="n">1</span><div><div className="fw-semibold">{cur.from}</div><div className="leg">시점</div></div></div>
-                  <div className="jp-stop"><span className="n">2</span><div><div className="fw-semibold">{cur.to}</div><div className="leg">종점</div></div></div>
+                  <div className="jp-stop"><span className="n">2</span><div><div className="fw-semibold">{cur.to}</div><div className="leg">{cur.loop ? '종점 (시점으로 돌아오는 순환 코스)' : '종점'}</div></div></div>
                   <div className="d-grid gap-2 mt-3">
                     <a className="btn btn-sm btn-outline-sea" target="_blank" rel="noreferrer" href={mapWalkLink({ ...cur.a, name: cur.from }, { ...cur.b, name: cur.to })}><i className="bi bi-person-walking me-1" />카카오맵 도보 길찾기</a>
                     <a className="btn btn-sm btn-outline-sea" target="_blank" rel="noreferrer" href={mapToLink(cur.from, cur.a.lat, cur.a.lng)}><i className="bi bi-signpost me-1" />시점까지 길찾기</a>
                     <a className="btn btn-sm btn-outline-sea" target="_blank" rel="noreferrer" href={OLLE_SITE}><i className="bi bi-box-arrow-up-right me-1" />제주올레 공식 사이트</a>
-                    <Link className="btn btn-sm btn-primary" to={askLink(`제주올레 ${cur.name}(${cur.title})를 걷기 좋은 시간대, 날씨, 근처에 같이 갈 곳을 알려줘`)}><i className="bi bi-stars me-1" />AI에게 이 코스 물어보기</Link>
+                    <Link className="btn btn-sm btn-primary" to={askLink(`제주올레 ${cur.name}(${cur.fullName || cur.title}, 약 ${cur.km ?? ''}km·${cur.hours ?? ''}시간)를 걷기 좋은 시간대, 날씨, 근처에 같이 갈 곳을 알려줘`)}><i className="bi bi-stars me-1" />AI에게 이 코스 물어보기</Link>
                   </div>
                 </div>
               </Col>

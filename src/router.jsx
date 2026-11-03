@@ -23,7 +23,7 @@ export const NAV_ITEMS = [
   { to: '/explore', label: '사진 탐색', icon: 'images' },
   { to: '/spots', label: '포토 스팟', icon: 'camera' },
   { to: '/near', label: '내 주변', icon: 'geo-alt' },
-  { to: '/album', label: '미니앨범', icon: 'film' },
+  { to: '/album', label: '사진 편집', icon: 'magic' },
   { to: '/map', label: '지도', icon: 'map' },
   { to: '/info', label: '여행 정보', icon: 'info-circle' },
 ]

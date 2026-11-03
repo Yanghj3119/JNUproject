@@ -16,6 +16,7 @@ const API = {
   socar: 'tta9at0b01a0181t11bttttt9b0tt9tt',       // 쏘카존(카셰어링) 위치 정보 (placeName)
   lodging: 'ttbttaD3aaa3ta8bbtDtaDD18t37aD17',    // 관광 숙박업 정보         (companyName, bizSmallType, openStatus)
   trail: '888tDaaDaat91181b7Db79811181tDaa',       // 한라산 둘레길 코스별 정보 (courseName, startPoint, endPoint)
+  olle: '1Daaa177batDba8b8t711D17D18atDa7',          // 올레길 위치 정보 (코스 번호·이름·길이·소요시간)
 }
 
 export function hubKey() {
