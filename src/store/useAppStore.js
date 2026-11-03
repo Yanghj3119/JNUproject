@@ -50,7 +50,8 @@ export const useAppStore = create((set, get) => ({
   signInKakao: async () => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'kakao',
-      options: { redirectTo: `${window.location.origin}/` },
+      // prompt=login: 브라우저에 카카오 계정 로그인이 남아 있어도 매번 아이디·비밀번호를 다시 묻는다 (카카오톡 프로그램과는 별개의 로그인이다)
+      options: { redirectTo: `${window.location.origin}/`, queryParams: { prompt: 'login' } },
     })
     if (error) throw error
   },
