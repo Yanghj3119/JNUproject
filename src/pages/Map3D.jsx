@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Col, Container, Row } from 'react-bootstrap'
 import { fetchAccess, fetchNearby, fetchSpots, fetchWeather } from '../api/client'
+import { useAppStore } from '../store/useAppStore'
 import { useAsync } from '../lib/useAsync'
 import { TYPE_META, typeMeta, skyIcon } from '../lib/format'
 import { fallbackFor } from '../data/landmarks'
@@ -98,6 +99,9 @@ function MapSearch({ spots, onPick }) {
 export default function Map3D() {
   const [type, setType] = useState('12')
   const [sel, setSel] = useState(null)
+  // 핀을 눌러 나온 장소를 위시리스트(하트)에 담기
+  const faved = useAppStore((st) => Boolean(sel) && st.favorites.some((f) => f.source === 'place' && f.item_id === String(sel.id)))
+  const toggleFav = useAppStore((st) => st.toggleFavorite)
   const [found, setFound] = useState(null) // 검색해서 찾은 장소 (핀으로 함께 표시)
   const [view, setView] = useState('3d') // '3d' | 'map'
   const [exag, setExag] = useState(3) // 3D 고도 과장 배율
@@ -229,7 +233,13 @@ export default function Map3D() {
               <>
                 {sel.image && <img className="cover mb-3" src={sel.image} alt={sel.title} />}
                 <span className="jp-tag" style={{ '--c': typeMeta(sel.type).color }}>{typeMeta(sel.type).label}</span>
-                <h2 className="h5 fw-bold mt-2 mb-1">{sel.title}</h2>
+                <div className="d-flex align-items-start justify-content-between gap-2 mt-2 mb-1">
+                  <h2 className="h5 fw-bold mb-0">{sel.title}</h2>
+                  <button type="button" className={`btn btn-sm jp-iconbtn fs-4 p-0 ${faved ? 'on' : ''}`} aria-label="위시리스트에 담기" title={faved ? '위시리스트에서 빼기' : '위시리스트에 담기'}
+                    onClick={() => toggleFav({ source: 'place', id: sel.id, title: sel.title, image: sel.image })}>
+                    <i className={`bi bi-heart${faved ? '-fill' : ''}`} />
+                  </button>
+                </div>
                 <div className="small text-muted mb-3">{sel.addr}</div>
 
                 <WeatherBadge lat={sel.lat} lng={sel.lng} variant="card" />

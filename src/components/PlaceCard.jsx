@@ -24,10 +24,10 @@ export default function PlaceCard({ place }) {
         </div>
       </div>
       <button
-        type="button" className={`btn btn-sm jp-iconbtn ${faved ? 'on' : ''}`} aria-label="보관함에 담기"
+        type="button" className={`btn btn-sm jp-iconbtn ${faved ? 'on' : ''}`} aria-label="위시리스트에 담기"
         onClick={() => toggle({ source: 'place', id: place.id, title: place.title, image: place.image })}
       >
-        <i className={`bi bi-bookmark${faved ? '-fill' : ''}`} />
+        <i className={`bi bi-heart${faved ? '-fill' : ''}`} />
       </button>
     </div>
   )
