@@ -4,7 +4,7 @@
 > 사진 명소·포토존·유명 관광지를 바탕으로 AI가 코스를 추천하고, 길찾기·날씨·교통·숙박 같은 여행 편의 정보를 한곳에서 보여 주는 관광객용 웹 서비스입니다.
 
 - 운영 주소: https://jn-uproject.vercel.app
-- 발표 자료: [`docs/제주픽-발표.pptx`](docs/제주픽-발표.pptx) (3분 발표용 7장, 슬라이드마다 발표 대본이 노트에 들어 있음)
+- 발표 자료: [`docs/제주픽-발표.pptx`](docs/제주픽-발표.pptx) (3분 발표용 8장: 페이지별 기능·AI 도구 15종·데이터 출처 중심, 슬라이드마다 발표 대본이 노트에 들어 있음)
 - 기술: Vite · React · React Router · Zustand · Bootstrap · Supabase · Three.js · Kakao Maps — 배포는 Vercel Hobby(서버 함수 `api/` 11개)
 
 ## 목차
