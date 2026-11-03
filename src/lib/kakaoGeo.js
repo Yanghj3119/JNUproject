@@ -34,6 +34,35 @@ export function findPlace(keyword) {
   })
 }
 
+// 숙박시설의 전화번호·카카오맵 페이지 찾기 → { name, phone, addr, url, category, lat, lng } | null
+//  사업자 이름("(주)더크라운이앤에스 호텔하니크라운")에서 법인 표기를 떼고, 도로명 주소가 맞는 장소를 우선한다.
+const normName = (s) => String(s ?? '').replace(/[\s()[\]·\-_,.]/g, '').toLowerCase()
+export function findLodgingInfo(name, addr) {
+  const key = `l:${name}|${addr}`
+  return memo(key, async () => {
+    const clean = String(name ?? '').replace(/\(주\)|\(유\)|\(사\)|\(합\)|주식회사|유한회사|유한책임회사|\(.*?\)/g, ' ').replace(/\s+/g, ' ').trim()
+    if (!clean) return null
+    const words = clean.split(' ')
+    const tries = [...new Set([clean, words.slice(-2).join(' '), words.at(-1), `제주 ${words.slice(-2).join(' ')}`])].filter((q) => q && q.length >= 2)
+    const road = String(addr ?? '').split(',')[0].replace(/\(.*?\)/g, '').trim() // "제주특별자치도 제주시 삼성로 10"
+    const tail = road.split(' ').slice(-2).join(' ') // "삼성로 10"
+    const nn = normName(clean)
+    for (const q of tries) {
+      const list = (await search(q)).filter(inJeju)
+      const same = list.find((d) => tail.length > 3 && String(d.road_address_name).includes(tail)) // 주소가 같은 곳
+      // 주소가 같은 곳이 없으면 이름이 충분히 겹치는 숙박 장소 (짧고 흔한 이름은 엉뚱한 곳이 잡히지 않게 건너뛴다)
+      const last = normName(words.at(-1))
+      const near = list.find((d) => {
+        const pn = normName(d.place_name)
+        return /숙박|호텔|리조트|펜션|콘도|모텔|게스트|민박|호스텔/.test(d.category_name ?? '') && ((last.length >= 4 && pn.includes(last)) || pn.includes(nn) || (pn.length >= 4 && nn.includes(pn)))
+      })
+      const d = same ?? near
+      if (d) return { name: d.place_name, phone: d.phone || '', addr: d.road_address_name || d.address_name, url: d.place_url, category: d.category_name, lat: Number(d.y), lng: Number(d.x) }
+    }
+    return null
+  })
+}
+
 // 주소로 좌표 찾기 → { lat, lng } | null
 export function findAddress(address) {
   const clean = String(address ?? '').split(',')[0].replace(/\(.*?\)/g, '').trim() // "…삼성로 10, 호텔 (이도일동)" → "…삼성로 10"

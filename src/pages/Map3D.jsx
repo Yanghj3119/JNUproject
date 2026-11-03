@@ -8,6 +8,8 @@ import { fallbackFor } from '../data/landmarks'
 import PageBanner from '../components/PageBanner'
 import Jeju3D, { WEATHER_REGIONS } from '../components/Jeju3D'
 import KakaoMap from '../components/KakaoMap'
+import MyLocationButton from '../components/MyLocationButton'
+import { useMyLocation } from '../lib/useMyLocation'
 import PlaceCard from '../components/PlaceCard'
 import Status from '../components/Status'
 import WeatherBadge from '../components/WeatherBadge'
@@ -48,26 +50,9 @@ export default function Map3D() {
   const [exag, setExag] = useState(3) // 3D 고도 과장 배율
   const [wx, setWx] = useState('live') // 날씨 미리보기 모드
 
-  // 내 위치: 버튼을 누르면 브라우저 위치로 3D·평면 지도에 표시한다 (제주 밖이면 안내만)
-  const [me, setMe] = useState(null)
-  const [meBusy, setMeBusy] = useState(false)
-  const [meMsg, setMeMsg] = useState('')
-  const locateMe = () => {
-    setMeMsg('')
-    if (!navigator.geolocation) return setMeMsg('이 브라우저는 위치 기능을 지원하지 않아요.')
-    setMeBusy(true)
-    navigator.geolocation.getCurrentPosition(
-      (p) => {
-        setMeBusy(false)
-        const here = { lat: p.coords.latitude, lng: p.coords.longitude }
-        if (here.lat < 33 || here.lat > 34 || here.lng < 126 || here.lng > 127.1) setMeMsg('현재 위치가 제주 밖이라 지도에 표시할 수 없어요.')
-        else { setMe(here); setSel(null) }
-      },
-      (e) => { setMeBusy(false); setMeMsg(e.code === 1 ? '위치 권한이 거부됐어요. 주소창의 자물쇠 아이콘에서 위치를 허용해 주세요.' : '현재 위치를 알 수 없어요. 잠시 뒤 다시 시도해 주세요.') },
-      { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 },
-    )
-  }
-  const mePin = useMemo(() => (me ? [{ id: 'me', title: '내 위치', lat: me.lat, lng: me.lng, type: 'me', label: true }] : []), [me])
+  // 내 위치: 3D·평면 지도가 함께 쓴다 (한 번 더 누르면 꺼지고 처음 보기로 돌아간다)
+  const loc = useMyLocation()
+  const mePin = useMemo(() => (loc.me ? [{ id: 'me', title: '내 위치', lat: loc.me.lat, lng: loc.me.lng, type: 'me', label: true }] : []), [loc.me])
 
   const fetched = useAsync(() => fetchSpots(type), [type])
   // 공공데이터가 비어 있거나 실패하면 대표 명소로 대체해서 핀이 항상 보이게 한다
@@ -117,11 +102,9 @@ export default function Map3D() {
               ))}
             </div>
             {view === '3d'
-              ? <Jeju3D spots={spots.data ?? []} selectedId={sel?.id} onSelect={setSel} weather={effective} sun={sun} override={override} regional={showRegions ? regions.data ?? [] : []} exaggeration={exag} me={me} focus={me} />
-              : <KakaoMap spots={[...(spots.data ?? []), ...mePin]} selectedId={sel?.id} onSelect={(s) => s?.id !== 'me' && setSel(s)} center={me} />}
-            <button type="button" className={`jp-map-me ${view === '3d' ? 'up' : ''} ${me ? 'on' : ''}`} onClick={locateMe} disabled={meBusy} title="내 위치를 지도에 표시">
-              <i className={`bi bi-${meBusy ? 'hourglass-split' : 'crosshair'} me-1`} />{meBusy ? '확인 중…' : '내 위치'}
-            </button>
+              ? <Jeju3D spots={spots.data ?? []} selectedId={sel?.id} onSelect={setSel} weather={effective} sun={sun} override={override} regional={showRegions ? regions.data ?? [] : []} exaggeration={exag} loc={loc} actionsClass="up" />
+              : <KakaoMap spots={[...(spots.data ?? []), ...mePin]} selectedId={sel?.id} onSelect={(s) => s?.id !== 'me' && setSel(s)} center={loc.me} />}
+            {view === 'map' && <div className="jp-map-actions flat"><MyLocationButton loc={loc} /></div>}
             <div className="jp-map-hint">
               {view === '3d'
                 ? <><i className="bi bi-mouse me-1" />드래그: 회전 · 휠: 확대 · 핀: 선택</>
@@ -161,7 +144,7 @@ export default function Map3D() {
               </>
             )}
           </div>
-          {meMsg && <div className="alert alert-warning py-2 small mt-2 mb-0">{meMsg}</div>}
+          {view === 'map' && loc.msg && <div className="alert alert-warning py-2 small mt-2 mb-0">{loc.msg}</div>}
           {usingFallback && (
             <div className="small text-muted mt-2">
               <i className="bi bi-info-circle me-1" />공공데이터를 불러오지 못해 제주 대표 명소를 보여 드려요.

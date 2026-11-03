@@ -4,7 +4,7 @@ import { Col, Container, Row } from 'react-bootstrap'
 import { fetchHub } from '../api/client'
 import { useAsync } from '../lib/useAsync'
 import { TRAIL_POINTS } from '../data/trailPoints'
-import { findAddress, findPlace, mapSearchLink, mapToLink, mapWalkLink } from '../lib/kakaoGeo'
+import { findAddress, findLodgingInfo, findPlace, mapSearchLink, mapToLink, mapWalkLink } from '../lib/kakaoGeo'
 import { roadRoute } from '../lib/routing'
 import KakaoMap from '../components/KakaoMap'
 import Jeju3D from '../components/Jeju3D'
@@ -251,11 +251,29 @@ function RentTab() {
 
 // ── 숙박: 주소로 위치를 찾아 지도에 표시 ───────────────────────
 function LodgingMap({ item }) {
-  const { data, loading } = useAsync(async () => (await findAddress(item.addr)) ?? (await findPlace(item.name)), [item.name, item.addr])
+  // 전화번호·카카오맵 페이지는 카카오 장소 검색에서 찾는다 (제주데이터허브 숙박 정보에는 연락처가 없다)
+  const info = useAsync(() => findLodgingInfo(item.name, item.addr), [item.name, item.addr])
+  const { data, loading } = useAsync(async () => (await findAddress(item.addr)) ?? info.data ?? (await findPlace(item.name)), [item.name, item.addr, info.data])
   const spots = useMemo(() => (data ? [{ id: 'lodging', title: item.name, lat: data.lat, lng: data.lng, type: '32' }] : []), [data, item.name])
+  const i = info.data
+  const phone = i?.phone?.trim()
+  const homepageSearch = `https://www.google.com/search?q=${encodeURIComponent(`${item.name.replace(/\(주\)|\(유\)|주식회사/g, '').trim()} 제주 공식 홈페이지`)}`
 
   return (
     <div className="mt-3">
+      <div className="jp-lodge-info">
+        <div><i className="bi bi-telephone me-2" />전화
+          {info.loading ? <span className="text-muted ms-2">찾는 중…</span>
+            : phone ? <a className="ms-2 fw-semibold" href={`tel:${phone.replace(/[^\d+]/g, '')}`}>{phone}</a>
+              : <span className="text-muted ms-2">등록된 번호를 찾지 못했어요</span>}
+        </div>
+        <div><i className="bi bi-geo-alt me-2" />주소<span className="ms-2">{item.addr}</span></div>
+        {item.jibun && <div className="text-muted small ms-4">지번 {item.jibun}</div>}
+        {i?.category && <div><i className="bi bi-tag me-2" />분류<span className="ms-2">{i.category.split('>').slice(-2).map((s) => s.trim()).join(' > ')}</span></div>}
+        {item.rooms != null && <div><i className="bi bi-door-closed me-2" />객실<span className="ms-2">{item.rooms}개</span></div>}
+        {item.since && <div><i className="bi bi-calendar-check me-2" />인허가일<span className="ms-2">{item.since}</span></div>}
+        {item.updated && <div className="small text-muted ms-4">정보 갱신 {item.updated}</div>}
+      </div>
       {data ? (
         <div className="jp-route-map rounded-3 overflow-hidden border" style={{ height: 240 }}><KakaoMap spots={spots} selectedId="lodging" /></div>
       ) : (
@@ -263,7 +281,9 @@ function LodgingMap({ item }) {
       )}
       <div className="d-flex flex-wrap gap-2 mt-2">
         {data && <a className="btn btn-sm btn-outline-sea" target="_blank" rel="noreferrer" href={mapToLink(item.name, data.lat, data.lng)}><i className="bi bi-signpost me-1" />길찾기</a>}
-        <a className="btn btn-sm btn-outline-sea" target="_blank" rel="noreferrer" href={mapSearchLink(item.name)}><i className="bi bi-map me-1" />카카오맵에서 보기</a>
+        {phone && <a className="btn btn-sm btn-primary" href={`tel:${phone.replace(/[^\d+]/g, '')}`}><i className="bi bi-telephone me-1" />전화 걸기</a>}
+        <a className="btn btn-sm btn-outline-sea" target="_blank" rel="noreferrer" href={i?.url ? i.url.replace(/^http:/, 'https:') : mapSearchLink(item.name)}><i className="bi bi-map me-1" />카카오맵 정보·후기</a>
+        <a className="btn btn-sm btn-outline-sea" target="_blank" rel="noreferrer" href={homepageSearch}><i className="bi bi-globe me-1" />홈페이지 검색</a>
         <Link className="btn btn-sm btn-primary" to={askLink(`${item.name} 근처에서 가볼 만한 곳과 맛집으로 반나절 코스를 만들어줘`)}><i className="bi bi-stars me-1" />주변 코스 물어보기</Link>
       </div>
     </div>

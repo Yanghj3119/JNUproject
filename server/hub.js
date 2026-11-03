@@ -120,7 +120,9 @@ export async function searchLodging({ name = '', type = '', status = '영업/정
   const rows = await callHub('lodging', { companyName: name, bizSmallType: type, openStatus: status })
   return clip(rows, limit).map((l) => ({
     name: l.companyName, type: l.bizSmallType || l.bizLargeType || '', rooms: num(l.roomCount) || undefined,
-    status: l.openStatus, addr: l.addressDoro || l.addressJibun,
+    status: l.openStatus, addr: l.addressDoro || l.addressJibun, jibun: l.addressJibun || undefined,
+    since: /^\d{8}$/.test(String(l.licensingDate ?? '')) ? `${String(l.licensingDate).slice(0, 4)}-${String(l.licensingDate).slice(4, 6)}-${String(l.licensingDate).slice(6)}` : undefined,
+    updated: String(l.updateAt ?? '').slice(0, 10) || undefined,
   }))
 }
 

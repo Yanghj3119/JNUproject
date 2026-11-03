@@ -5,6 +5,8 @@ import { Line, OrbitControls, Sky, Stars } from '@react-three/drei'
 import { typeMeta } from '../lib/format'
 import { loadTerrain } from '../lib/terrain'
 import JejuStylized from './JejuStylized'
+import MyLocationButton from './MyLocationButton'
+import { useMyLocation } from '../lib/useMyLocation'
 
 // 지명 라벨 (실제 좌표·고도)
 const LANDMARKS = [
@@ -431,11 +433,23 @@ function RegionWeather({ terrain, exag, items }) {
 }
 
 // 선택한 핀으로 카메라가 부드럽게 이동
-function CameraRig({ controls, target }) {
+// 카메라는 대상이 바뀐 직후 잠깐(약 2초)만 끌어다 주고, 그 뒤에는 사용자가 휠로 확대·축소해도 간섭하지 않는다
+const HOME = { position: [0, 4.2, 6.4], target: [0, 0, 0] }
+function CameraRig({ controls, target, resetN }) {
   const { camera } = useThree()
+  const until = useRef(0)
+  useEffect(() => { if (target) until.current = performance.now() + 2000 }, [target])
+  // 처음 보기로 돌아가기
+  useEffect(() => {
+    if (!resetN) return
+    until.current = 0
+    camera.position.set(...HOME.position)
+    const c = controls.current
+    if (c) { c.target.set(...HOME.target); c.update() }
+  }, [resetN, camera, controls])
   useFrame(() => {
     const c = controls.current
-    if (!c || !target) return
+    if (!c || !target || performance.now() > until.current) return
     const want = new THREE.Vector3(...target)
     const delta = want.clone().sub(c.target).multiplyScalar(0.08)
     c.target.add(delta)
@@ -447,7 +461,7 @@ function CameraRig({ controls, target }) {
   return null
 }
 
-function Scene({ terrain, spots, selectedId, onSelect, weather, sun, override, regional, exag, lines, focus, me }) {
+function Scene({ terrain, spots, selectedId, onSelect, weather, sun, override, regional, exag, lines, focus, me, resetN }) {
   const atm = atmosphere(weather, sun, override)
   const controls = useRef()
   const az = THREE.MathUtils.degToRad(atm.az)
@@ -492,7 +506,7 @@ function Scene({ terrain, spots, selectedId, onSelect, weather, sun, override, r
       <Weather atm={atm} />
 
       <OrbitControls ref={controls} makeDefault enablePan={false} minDistance={1.2} maxDistance={14} maxPolarAngle={Math.PI / 2.08} target={[0, 0, 0]} />
-      <CameraRig controls={controls} target={target} />
+      <CameraRig controls={controls} target={target} resetN={resetN} />
     </>
   )
 }
@@ -500,11 +514,20 @@ function Scene({ terrain, spots, selectedId, onSelect, weather, sun, override, r
 // spots: [{id,title,lat,lng,type}]
 // weather: 날씨 API 의 now 값 ({sky, rainy, rain, wind}) / sun: {sunrise, sunset} / override: 'day'|'night'|null (낮·밤 강제)
 // regional: [{place, lat, lng, temp, sky, rain, rainy, pop}] 지역별 날씨 라벨 / exaggeration: 고도 과장 배율
-// lines: 지형 위 경로선 [{id,color,active,segments}] / focus: {lat,lng} 카메라가 향할 중심 / me: {lat,lng} 내 위치 표시
-export default function Jeju3D({ spots = [], selectedId, onSelect = () => {}, weather, sun, override = null, regional = [], exaggeration = 3, lines, focus, me }) {
+// lines: 지형 위 경로선 [{id,color,active,segments}] / focus: {lat,lng} 카메라가 향할 중심
+// loc: useMyLocation() 결과 (여러 화면이 함께 쓸 때) — 주지 않으면 이 지도가 자체적으로 "내 위치"를 처리한다 / actionsClass: 버튼 묶음 위치 조정
+export default function Jeju3D({ spots = [], selectedId, onSelect = () => {}, weather, sun, override = null, regional = [], exaggeration = 3, lines, focus, loc: locProp, actionsClass = '' }) {
   const [terrain, setTerrain] = useState(null)
   const [error, setError] = useState(null)
   const [pct, setPct] = useState(0)
+  const own = useMyLocation()
+  const loc = locProp ?? own
+  const [resetN, setResetN] = useState(0) // 올라갈 때마다 카메라가 처음 보기로 돌아간다
+  const hadMe = useRef(false)
+  useEffect(() => { // 내 위치를 끄면 처음 보기로 되돌린다
+    if (hadMe.current && !loc.me) setResetN((n) => n + 1)
+    hadMe.current = Boolean(loc.me)
+  }, [loc.me])
 
   useEffect(() => {
     let alive = true
@@ -532,8 +555,19 @@ export default function Jeju3D({ spots = [], selectedId, onSelect = () => {}, we
           dpr={[1, 2]}
           onPointerMissed={() => onSelect(null)}
         >
-          <Scene terrain={terrain} spots={spots} selectedId={selectedId} onSelect={onSelect} weather={weather} sun={sun} override={override} regional={regional} exag={exaggeration} lines={lines} focus={focus} me={me} />
+          <Scene terrain={terrain} spots={spots} selectedId={selectedId} onSelect={onSelect} weather={weather} sun={sun} override={override} regional={regional} exag={exaggeration} lines={lines} focus={loc.me ?? focus} me={loc.me} resetN={resetN} />
         </Canvas>
+      )}
+      {terrain && (
+        <>
+          <div className={`jp-map-actions ${actionsClass}`}>
+            <MyLocationButton loc={loc} />
+            <button type="button" className="jp-map-me" onClick={() => setResetN((n) => n + 1)} title="처음 보기로 돌아가기 (휠: 확대·축소, 드래그: 회전)">
+              <i className="bi bi-arrows-fullscreen me-1" />전체 보기
+            </button>
+          </div>
+          {loc.msg && <div className="jp-map-msg">{loc.msg}</div>}
+        </>
       )}
     </div>
   )
