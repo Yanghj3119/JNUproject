@@ -1,16 +1,14 @@
 // 미니앨범 도구 — 사진 줄이기(브라우저에서만 처리), 템플릿, PPT 내려받기. 사진은 서버나 Supabase 에 저장하지 않는다.
 
-// 미니앨범 템플릿 — 앨범형 4가지(소장용 사진첩 느낌)와 시네마틱 4가지(사진을 가득 채움)
+// 미니앨범 템플릿 — 앨범형 4가지(소장용 사진첩 느낌)와 미니멀 2가지(여백 있는 단정한 느낌)
 //  · 사진 색을 분석해 자동으로 추천하고, 사용자가 직접 바꿀 수도 있다
 export const ALBUM_TEMPLATES = {
   polaroid: { kind: 'polaroid', group: 'album', label: '폴라로이드', desc: '크림색 종이에 폴라로이드 사진과 마스킹테이프', swatch: '#f0e4c8' },
   film: { kind: 'film', group: 'album', label: '필름', desc: '필름 현상본 느낌의 어두운 컷 사진', swatch: '#1b1b1e' },
   scrap: { kind: 'scrap', group: 'album', label: '스크랩북', desc: '크라프트지에 붙인 사진과 손글씨 라벨', swatch: '#c9a272' },
+  minimalWhite: { kind: 'minimal', group: 'minimal', label: '미니멀 화이트', desc: '여백을 넉넉히 둔 흰 종이와 단정한 글씨', swatch: '#ffffff', paper: 'FAFAF8', ink: '1F1F1D', sub: '8A8A84' },
+  minimalBlack: { kind: 'minimal', group: 'minimal', label: '미니멀 블랙', desc: '검은 바탕에 사진만 또렷하게', swatch: '#111111', paper: '111111', ink: 'F2F2EE', sub: '8C8C86' },
   gallery: { kind: 'gallery', group: 'album', label: '갤러리 액자', desc: '전시장 벽에 걸린 액자와 작품 설명판', swatch: '#e6e3da' },
-  sunset: { kind: 'cinema', group: 'cinema', label: '노을', desc: '사진을 가득 채운 따뜻한 주황빛', swatch: '#F59E0B', bg: '2B1308', bg2: '7C2D12', bar: '3B1D0A', accent: 'FBBF24', text: 'FFF7ED', sub: 'FDE68A' },
-  ocean: { kind: 'cinema', group: 'cinema', label: '바다', desc: '사진을 가득 채운 시원한 파란빛', swatch: '#38BDF8', bg: '0B2545', bg2: '13538A', bar: '0B2545', accent: '7DD3FC', text: 'FFFFFF', sub: 'BAE6FD' },
-  forest: { kind: 'cinema', group: 'cinema', label: '숲', desc: '사진을 가득 채운 싱그러운 초록빛', swatch: '#4ADE80', bg: '0F2A1D', bg2: '1F6B45', bar: '0F2A1D', accent: '86EFAC', text: 'F0FDF4', sub: 'BBF7D0' },
-  classic: { kind: 'cinema', group: 'cinema', label: '클래식', desc: '사진을 가득 채운 차분한 어두운 배경', swatch: '#93C5FD', bg: '0F1A20', bg2: '1B2A33', bar: '000000', accent: '93C5FD', text: 'FFFFFF', sub: 'BFD3DA' },
 }
 export const templateOf = (id) => ({ id, ...(ALBUM_TEMPLATES[id] ?? ALBUM_TEMPLATES.polaroid) })
 

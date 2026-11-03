@@ -576,58 +576,63 @@ function drawGallery(ctx, p) {
   plaque(ctx, W / 2, 430 + f.fh / 2 + 92, 980, 120, p.item.caption || p.title, `${p.info || `Jeju  ·  ${p.date}`}  ·  ${p.index + 1}/${p.total}`)
 }
 
-// ── 시네마틱(사진 가득 + 아래 띠) ───────────────────────────────
-function drawCinema(ctx, p, T) {
+// ── 미니멀(여백 많은 흰 종이/검은 종이) ─────────────────────────
+function drawMinimal(ctx, p, T) {
+  const paper = `#${T.paper}`, ink = `#${T.ink}`, sub = `#${T.sub}`
+  ctx.fillStyle = paper
+  ctx.fillRect(0, 0, W, H)
   ctx.textBaseline = 'alphabetic'
-  const hex = (c) => `#${c}`
-  const bar = (text, x, w) => {
-    if (!text) return
-    ctx.fillStyle = `rgba(${parseInt(T.bar.slice(0, 2), 16)},${parseInt(T.bar.slice(2, 4), 16)},${parseInt(T.bar.slice(4, 6), 16)},0.74)`
-    ctx.fillRect(x, H - 190, w, 190)
-    ctx.fillStyle = hex(T.accent)
-    ctx.fillRect(x, H - 190, w, 6)
-    ctx.fillStyle = hex(T.text)
-    ctx.font = `${w < W ? 40 : 52}px ${SANS}`
-    centerBlock(ctx, text, x + w / 2, H - 95, w - 120, w < W ? 52 : 64, 2)
+  ctx.textAlign = 'center'
+  const rule = (cx, y, w = 80) => { ctx.fillStyle = sub; ctx.fillRect(cx - w / 2, y, w, 2) }
+  const put = (im, cx, cy, mw, mh) => { const { w, h } = fit(im, mw, mh); if (im) ctx.drawImage(im, cx - w / 2, cy - h / 2, w, h); return { w, h } }
+  const note = (text, info, cx, w) => {
+    if (text) { ctx.fillStyle = ink; ctx.font = `40px ${SERIF}`; centerBlock(ctx, text, cx, 872, w, 54, 2) }
+    if (info) { ctx.fillStyle = sub; ctx.font = `24px ${SANS}`; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.fillText(info, cx, 1000) }
   }
-  if (p.type === 'photo') {
-    coverBlur(ctx, p.im, 0, 0, W, H)
-    bar(p.item.caption, 0, W)
-    if (p.info) { ctx.fillStyle = hex(T.sub); ctx.font = `26px ${SANS}`; ctx.textAlign = 'right'; ctx.textBaseline = 'alphabetic'; ctx.fillText(p.info, W - 60, 56) }
+  if (p.type === 'cover') {
+    put(p.images[0], 560, 520, 800, 780)
+    ctx.textAlign = 'left'
+    ctx.fillStyle = sub; ctx.font = `24px ${SANS}`
+    ctx.fillText('JEJU MINI ALBUM', 1060, 380)
+    ctx.fillStyle = ink; ctx.font = `bold 72px ${SERIF}`
+    const lines = wrap(ctx, p.title || "", 760, 3)
+    lines.forEach((l, i) => ctx.fillText(l, 1060, 500 + i * 92))
+    const y = 500 + lines.length * 92
+    ctx.fillStyle = sub; ctx.fillRect(1060, y - 30, 80, 2)
+    ctx.fillStyle = sub; ctx.font = `32px ${SERIF}`
+    wrap(ctx, p.subtitle || '', 720, 3).forEach((l, i) => ctx.fillText(l, 1060, y + 30 + i * 46))
+    ctx.font = `24px ${SANS}`
+    ctx.fillText(p.date, 1060, 940)
+    return
+  }
+  if (p.type === 'index') {
+    const n = p.images.length
+    p.images.forEach((im, i) => put(im, W / 2 + (i - (n - 1) / 2) * 300, 330, 260, 200))
+    ctx.fillStyle = ink; ctx.font = `bold 68px ${SERIF}`
+    centerBlock(ctx, p.title, W / 2, 640, W - 400, 84, 2)
+    rule(W / 2, 760)
+    ctx.fillStyle = sub; ctx.font = `26px ${SANS}`; ctx.textAlign = 'center'
+    ctx.fillText(p.date, W / 2, 840)
     return
   }
   if (p.type === 'pair') {
-    coverBlur(ctx, p.ims[0], 0, 0, W / 2, H)
-    coverBlur(ctx, p.ims[1], W / 2, 0, W / 2, H)
-    ctx.fillStyle = hex(T.accent)
-    ctx.fillRect(W / 2 - 3, 0, 6, H)
-    bar(p.items[0].caption, 0, W / 2)
-    bar(p.items[1].caption, W / 2, W / 2)
+    p.ims.forEach((im, i) => {
+      const cx = W / 2 + (i ? 420 : -420)
+      put(im, cx, 420, 700, 720)
+      note(p.items[i].caption, '', cx, 700)
+    })
+    note('', p.info, W / 2, 0)
     return
   }
-  coverBlur(ctx, p.images?.[0], 0, 0, W, H)
-  const g = ctx.createLinearGradient(0, 0, W, H)
-  g.addColorStop(0, `${hex(T.bg)}f2`)
-  g.addColorStop(1, `${hex(T.bg2)}cc`)
-  ctx.fillStyle = g
-  ctx.fillRect(0, 0, W, H)
-  ctx.textAlign = 'center'
-  ctx.fillStyle = hex(T.accent)
-  ctx.fillRect(W / 2 - 90, 380, 180, 8)
-  ctx.fillStyle = hex(T.text)
-  ctx.font = `bold 120px ${SANS}`
-  centerBlock(ctx, p.type === 'index' ? '감사합니다' : p.title, W / 2, 520, W - 360, 140, 2)
-  ctx.fillStyle = hex(T.sub)
-  ctx.font = `44px ${SANS}`
-  centerBlock(ctx, p.type === 'index' ? `제주픽으로 만든 미니앨범 · ${p.date}` : p.subtitle, W / 2, 690, W - 500, 58, 2)
-  if (p.type === 'cover') { ctx.font = `30px ${SANS}`; ctx.textBaseline = 'alphabetic'; ctx.fillText('제주픽 미니앨범', W / 2, H - 100) }
+  put(p.im, W / 2, 440, 1560, 760)
+  note(p.item.caption, `${p.info || p.date}  ·  ${p.index + 1} / ${p.total}`, W / 2, 1400)
 }
 
 // ── 외부에서 쓰는 함수 ──────────────────────────────────────
 const STYLE = { polaroid: drawPolaroid, film: drawFilm, scrap: drawScrap, gallery: drawGallery }
 
 // 앨범 전체 페이지(표지 + 사진 페이지들 + 마무리)를 그려 data URL 배열로 돌려준다
-// items: [{ dataUrl, caption, place, date }] / template: { kind: 'polaroid'|'film'|'scrap'|'gallery'|'cinema', ...색 }
+// items: [{ dataUrl, caption, place, date }] / template: { kind: 'polaroid'|'film'|'scrap'|'gallery'|'minimal', ...색 }
 // 세로 사진이 연달아 두 장이면 한 페이지에 나란히 넣는다
 export async function renderAlbumPages({ template, title, subtitle, items }) {
   await ensureFonts([title, subtitle, ...items.flatMap((it) => [it.caption, it.place, it.date])].map((x) => x ?? ''))
@@ -644,7 +649,7 @@ export async function renderAlbumPages({ template, title, subtitle, items }) {
     ctx.shadowColor = 'transparent'
     ctx.setLineDash([])
     ctx.globalAlpha = 1
-    if (template.kind === 'cinema') drawCinema(ctx, page, template)
+    if (template.kind === 'minimal') drawMinimal(ctx, page, template)
     else STYLE[template.kind](ctx, page)
     return canvas.toDataURL('image/jpeg', 0.88)
   }

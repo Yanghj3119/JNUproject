@@ -246,9 +246,9 @@ export default function Album() {
             <div className="jp-panel mb-3">
               <div className="jp-eyebrow mb-2">3. 미리보기</div>
               <div className="mb-2">
-                {['album', 'cinema'].map((g) => (
+                {['album', 'minimal'].map((g) => (
                   <div key={g} className="d-flex flex-wrap align-items-center gap-2 mb-1">
-                    <span className="small fw-semibold" style={{ minWidth: 92 }}><i className={`bi bi-${g === 'album' ? 'journal-richtext' : 'film'} me-1`} />{g === 'album' ? '앨범형' : '시네마틱'}</span>
+                    <span className="small fw-semibold" style={{ minWidth: 92 }}><i className={`bi bi-${g === 'album' ? 'journal-richtext' : 'square'} me-1`} />{g === 'album' ? '앨범형' : '미니멀'}</span>
                     {Object.entries(ALBUM_TEMPLATES).filter(([, t]) => t.group === g).map(([id, t]) => (
                       <button key={id} type="button" className={`jp-month ${tpl === id ? 'on' : ''}`} onClick={() => { setTpl(id); setTplManual(true) }} title={t.desc}>
                         <span style={{ display: 'inline-block', width: 12, height: 12, borderRadius: 3, background: t.swatch, border: '1px solid rgba(0,0,0,0.25)', marginRight: 6, verticalAlign: '-1px' }} />{t.label}
