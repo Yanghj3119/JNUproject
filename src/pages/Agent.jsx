@@ -85,13 +85,29 @@ function StepDetail({ step }) {
 
 const entryTitle = (h) => (h.kind === 'places' ? h.title : h.route.title)
 
-// 최근 추천 기록 중 하나를 고르는 상자 (기록이 2개 이상일 때)
+// 최근 추천 기록 중 하나를 고르는 상자 (기록이 2개 이상일 때) + 기록 지우기 (1개 이상일 때)
+// 기록은 이 브라우저에만 저장돼 있어서, 지우면 이 브라우저에서 바로 사라진다
 function HistoryPicker({ history, pick, onPick }) {
-  if (history.length < 2) return null
+  const deleteHistory = useAppStore((s) => s.deleteHistory)
+  const clearHistory = useAppStore((s) => s.clearHistory)
+  if (!history.length) return null
+  const cur = history[pick] ?? history[0]
   return (
-    <select className="form-select form-select-sm mb-2" value={pick} onChange={(e) => onPick?.(Number(e.target.value))} aria-label="최근 추천 고르기">
-      {history.map((h, i) => <option key={h.id} value={i}>{i === 0 ? '최신 · ' : ''}{h.kind === 'places' ? '장소 · ' : '코스 · '}{entryTitle(h)} ({timeOf(h.at)})</option>)}
-    </select>
+    <div className="mb-2">
+      {history.length > 1 && (
+        <select className="form-select form-select-sm mb-1" value={pick} onChange={(e) => onPick?.(Number(e.target.value))} aria-label="최근 추천 고르기">
+          {history.map((h, i) => <option key={h.id} value={i}>{i === 0 ? '최신 · ' : ''}{h.kind === 'places' ? '장소 · ' : '코스 · '}{entryTitle(h)} ({timeOf(h.at)})</option>)}
+        </select>
+      )}
+      <div className="d-flex flex-wrap align-items-center gap-2">
+        <button type="button" className="btn btn-sm btn-outline-sea py-0" onClick={() => { deleteHistory(cur.id); onPick?.(0) }}><i className="bi bi-trash me-1" />이 기록 삭제</button>
+        {history.length > 1 && (
+          <button type="button" className="btn btn-sm btn-outline-sea py-0"
+            onClick={() => { if (window.confirm(`추천 기록 ${history.length}개를 모두 지울까요? 이 브라우저에 저장된 기록만 지워져요.`)) { clearHistory(); onPick?.(0) } }}>전체 삭제</button>
+        )}
+        <span className="small text-muted">이 브라우저에만 최근 {history.length}개 저장돼요</span>
+      </div>
+    </div>
   )
 }
 

@@ -123,6 +123,16 @@ export const useAppStore = create((set, get) => ({
   messages: [], // { role: 'user' | 'assistant', text, steps, route }
   chatLoading: false,
   routeHistory: loadRouteHistory(), // 최근에 AI가 추천한 코스 (최신이 앞, 이 브라우저에 저장)
+  // 추천 기록 지우기 — 이 브라우저에 저장된 기록만 지워진다 (로그인한 대화 기록은 별도)
+  deleteHistory: (id) => {
+    const list = get().routeHistory.filter((e) => e.id !== id)
+    set({ routeHistory: list })
+    saveRouteHistory(list)
+  },
+  clearHistory: () => {
+    set({ routeHistory: [] })
+    saveRouteHistory([])
+  },
   sendMessage: async (text) => {
     const history = get().messages.map((m) => ({ role: m.role, content: m.text }))
     set({ messages: [...get().messages, { role: 'user', text }], chatLoading: true })
