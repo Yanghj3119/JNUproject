@@ -91,7 +91,7 @@ export default function Home() {
         </div>
         <Container className="jp-hero-inner">
           <div className="jp-eyebrow mb-3">AI 제주 여행 가이드</div>
-          <h1>제주 여행,<br />물어보면 코스가 됩니다.</h1>
+          <h1>인생샷 한 장에서 시작해<br />제주 하루 코스가 됩니다.</h1>
           <p className="lead mt-3 mb-4">
             사진·날씨·혼잡도·주변 명소·접근성을 AI가 공공데이터로 직접 확인하고, 방문 순서까지 정리해 드려요.
           </p>
