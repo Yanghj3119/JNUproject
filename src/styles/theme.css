@@ -346,3 +346,5 @@ button.jp-pick.on { border-color: var(--jp-ink); box-shadow: inset 0 0 0 1px var
 .jp-info .form-control:focus, .jp-info .form-select:focus { border-color: var(--jp-sea); box-shadow: 0 0 0 3px rgba(14, 111, 122, 0.22); }
 .jp-info .form-select { padding-right: 2.25rem; }
 .jp-info .btn-group .btn-outline-sea { background-color: #fff; border-width: 2px; }
+
+.jp-slide-wait { position: absolute; left: 0.8rem; bottom: 0.8rem; background: rgba(0, 0, 0, 0.6); color: #fff; font-size: 0.8rem; border-radius: 999px; padding: 0.25rem 0.8rem; }

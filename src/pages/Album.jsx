@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Container } from 'react-bootstrap'
 import { makeAlbumCaptions } from '../api/client'
-import { ALBUM_TEMPLATES, shrinkImage, downloadAlbumPptx, recommendTemplate } from '../lib/albumTools'
+import { ALBUM_TEMPLATES, shrinkImage, downloadAlbumPptx, recommendTemplate, templateForMood, templateOf } from '../lib/albumTools'
+import { renderAlbumPages } from '../lib/albumRender'
 import { useAppStore } from '../store/useAppStore'
 import PageBanner from '../components/PageBanner'
 
@@ -10,40 +11,33 @@ const MAX = 5
 const SLIDE_MS = 1500 // 한 장면에 머무는 시간 (1~2초)
 const IDLE_MS = 15 * 60e3 // 15분 동안 아무것도 안 하면 사진과 슬라이드를 지운다
 
-// 슬라이드쇼 미리보기 (표지 + 사진 + 마지막 장)
-function Slideshow({ title, subtitle, items, template }) {
-  const T = ALBUM_TEMPLATES[template] ?? ALBUM_TEMPLATES.classic
-  const vars = { '--tp-bg': `#${T.bg}`, '--tp-bg2': `#${T.bg2}`, '--tp-bar': `#${T.bar}`, '--tp-accent': `#${T.accent}`, '--tp-text': `#${T.text}`, '--tp-sub': `#${T.sub}` }
-  const slides = [{ kind: 'title' }, ...items.map((it) => ({ kind: 'photo', ...it })), { kind: 'end' }]
+// 슬라이드쇼 미리보기 — 템플릿대로 그려 둔 페이지(PPT 와 같은 그림)를 한 장씩 보여 준다
+function Slideshow({ pages, rendering }) {
   const [i, setI] = useState(0)
   const [playing, setPlaying] = useState(false)
   const box = useRef(null)
+  const n = pages.length
 
-  useEffect(() => { if (i >= slides.length) setI(0) }, [slides.length, i])
+  useEffect(() => { if (i >= n) setI(0) }, [n, i])
   useEffect(() => {
-    if (!playing) return undefined
-    const t = setInterval(() => setI((x) => (x + 1) % slides.length), SLIDE_MS)
+    if (!playing || !n) return undefined
+    const t = setInterval(() => setI((x) => (x + 1) % n), SLIDE_MS)
     return () => clearInterval(t)
-  }, [playing, slides.length])
+  }, [playing, n])
 
-  const s = slides[Math.min(i, slides.length - 1)]
-  const bg = s.kind === 'photo' ? s.dataUrl : items[0]?.dataUrl
   const fullscreen = () => { try { box.current?.requestFullscreen?.() } catch { /* 전체 화면을 못 쓰는 환경 */ } }
 
   return (
     <div>
-      <div ref={box} className="jp-slide" style={vars} role="img" aria-label="미니앨범 미리보기">
-        {bg && <img key={i} src={bg} alt="" className={`jp-slide-img ${s.kind !== 'photo' ? 'dim' : ''}`} />}
-        {s.kind !== 'photo' && <div className="jp-slide-bgfill" />}
-        {s.kind === 'title' && <div className="jp-slide-text"><h2>{title}</h2><p>{subtitle}</p><small>제주픽 미니앨범</small></div>}
-        {s.kind === 'end' && <div className="jp-slide-text"><h2>감사합니다</h2><small>제주픽으로 만든 미니앨범</small></div>}
-        {s.kind === 'photo' && s.caption && <div className="jp-slide-cap">{s.caption}</div>}
-        <div className="jp-slide-count">{i + 1} / {slides.length}</div>
+      <div ref={box} className="jp-slide" role="img" aria-label="미니앨범 미리보기">
+        {pages[Math.min(i, n - 1)] && <img key={i} src={pages[Math.min(i, n - 1)].dataUrl} alt="" className="jp-slide-img" />}
+        {rendering && <div className="jp-slide-wait"><span className="spinner-border spinner-border-sm me-2" />디자인을 입히는 중…</div>}
+        {n > 0 && <div className="jp-slide-count">{Math.min(i, n - 1) + 1} / {n}</div>}
       </div>
       <div className="d-flex flex-wrap gap-2 mt-2">
-        <button type="button" className="btn btn-sm btn-outline-sea" onClick={() => setI((x) => (x - 1 + slides.length) % slides.length)}><i className="bi bi-chevron-left" /> 이전</button>
-        <button type="button" className="btn btn-sm btn-primary" onClick={() => setPlaying((p) => !p)}><i className={`bi bi-${playing ? 'pause' : 'play'}-fill me-1`} />{playing ? '멈춤' : '자동 재생'}</button>
-        <button type="button" className="btn btn-sm btn-outline-sea" onClick={() => setI((x) => (x + 1) % slides.length)}>다음 <i className="bi bi-chevron-right" /></button>
+        <button type="button" className="btn btn-sm btn-outline-sea" onClick={() => setI((x) => (x - 1 + n) % n)} disabled={!n}><i className="bi bi-chevron-left" /> 이전</button>
+        <button type="button" className="btn btn-sm btn-primary" onClick={() => setPlaying((p) => !p)} disabled={!n}><i className={`bi bi-${playing ? 'pause' : 'play'}-fill me-1`} />{playing ? '멈춤' : '자동 재생'}</button>
+        <button type="button" className="btn btn-sm btn-outline-sea" onClick={() => setI((x) => (x + 1) % n)} disabled={!n}>다음 <i className="bi bi-chevron-right" /></button>
         <button type="button" className="btn btn-sm btn-outline-sea ms-auto" onClick={fullscreen}><i className="bi bi-arrows-fullscreen me-1" />전체 화면</button>
       </div>
     </div>
@@ -59,7 +53,9 @@ export default function Album() {
   const [err, setErr] = useState('')
   const [msg, setMsg] = useState('')
   const [downloaded, setDownloaded] = useState(false)
-  const [tpl, setTpl] = useState('classic') // 미니앨범 디자인(템플릿)
+  const [tpl, setTpl] = useState('polaroid') // 미니앨범 디자인(템플릿)
+  const [pages, setPages] = useState([]) // 템플릿대로 그린 페이지 그림들
+  const [rendering, setRendering] = useState(false)
   const [tplManual, setTplManual] = useState(false) // 사용자가 직접 골랐으면 자동 추천이 덮어쓰지 않는다
   const idle = useRef(null)
 
@@ -69,7 +65,8 @@ export default function Album() {
     setTitle('제주 미니앨범')
     setSubtitle('')
     setDownloaded(false)
-    setTpl('classic')
+    setTpl('polaroid')
+    setPages([])
     setTplManual(false)
     setErr('')
     setMsg(why)
@@ -118,6 +115,22 @@ export default function Album() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [photoKey, tplManual])
 
+  // 사진·문구·제목·디자인이 바뀌면 페이지를 다시 그린다 (입력 중에는 잠깐 기다렸다가)
+  const renderKey = JSON.stringify([items.map((x) => [x.id, x.caption]), title, subtitle, tpl])
+  useEffect(() => {
+    if (!items.length) { setPages([]); return undefined }
+    let alive = true
+    setRendering(true)
+    const t = setTimeout(() => {
+      renderAlbumPages({ template: templateOf(tpl), title, subtitle, items })
+        .then((p) => { if (alive) setPages(p) })
+        .catch(() => { if (alive) setErr('앨범 그림을 그리지 못했어요. 사진을 다시 골라 보세요.') })
+        .finally(() => { if (alive) setRendering(false) })
+    }, 350)
+    return () => { alive = false; clearTimeout(t) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [renderKey])
+
   const move = (idx, d) => setItems((cur) => { const a = [...cur]; const j = idx + d; if (j < 0 || j >= a.length) return a; [a[idx], a[j]] = [a[j], a[idx]]; return a })
   const remove = (id) => setItems((cur) => cur.filter((x) => x.id !== id))
   const setCaption = (id, caption) => setItems((cur) => cur.map((x) => (x.id === id ? { ...x, caption } : x)))
@@ -129,7 +142,7 @@ export default function Album() {
       const r = await makeAlbumCaptions(items.map((x) => x.small))
       setTitle(r.title || title)
       setSubtitle(r.subtitle || '')
-      if (r.template && !tplManual) setTpl(r.template)
+      if (r.template && !tplManual) setTpl(templateForMood(r.template))
       setItems((cur) => cur.map((x, i) => ({ ...x, caption: r.captions?.[i] || x.caption, ok: r.photoSpotOk?.[i] !== false, note: r.notes?.[i] || '' })))
       setMsg('AI가 제목과 문구를 만들었어요. 마음에 안 들면 직접 고칠 수 있어요.')
     } catch (e) { setErr(`${e.message} — 문구는 직접 적어도 앨범을 만들 수 있어요.`) } finally { setBusy('') }
@@ -139,7 +152,7 @@ export default function Album() {
     setErr(''); setMsg('')
     setBusy('pptx')
     try {
-      await downloadAlbumPptx({ title, subtitle, items, fileName: `${title.replace(/[\\/:*?"<>|]/g, '').trim() || '제주-미니앨범'}.pptx`, template: tpl })
+      await downloadAlbumPptx({ title, pages, fileName: `${title.replace(/[\\/:*?"<>|]/g, '').trim() || '제주-미니앨범'}.pptx` })
       setDownloaded(true)
       setMsg('PPT를 내려받았어요. 이 페이지를 나가면 사진과 슬라이드는 모두 삭제돼요.')
     } catch (e) { setErr(`PPT를 만들지 못했어요: ${e.message}`) } finally { setBusy('') }
@@ -202,22 +215,26 @@ export default function Album() {
 
             <div className="jp-panel mb-3">
               <div className="jp-eyebrow mb-2">3. 미리보기</div>
-              <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
-                <span className="small fw-semibold"><i className="bi bi-palette me-1" />디자인</span>
-                {Object.entries(ALBUM_TEMPLATES).map(([id, t]) => (
-                  <button key={id} type="button" className={`jp-month ${tpl === id ? 'on' : ''}`} onClick={() => { setTpl(id); setTplManual(true) }} title={t.desc}>
-                    <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 3, background: `#${t.accent}`, marginRight: 6 }} />{t.label}
-                  </button>
+              <div className="mb-2">
+                {['album', 'cinema'].map((g) => (
+                  <div key={g} className="d-flex flex-wrap align-items-center gap-2 mb-1">
+                    <span className="small fw-semibold" style={{ minWidth: 92 }}><i className={`bi bi-${g === 'album' ? 'journal-richtext' : 'film'} me-1`} />{g === 'album' ? '앨범형' : '시네마틱'}</span>
+                    {Object.entries(ALBUM_TEMPLATES).filter(([, t]) => t.group === g).map(([id, t]) => (
+                      <button key={id} type="button" className={`jp-month ${tpl === id ? 'on' : ''}`} onClick={() => { setTpl(id); setTplManual(true) }} title={t.desc}>
+                        <span style={{ display: 'inline-block', width: 12, height: 12, borderRadius: 3, background: t.swatch, border: '1px solid rgba(0,0,0,0.25)', marginRight: 6, verticalAlign: '-1px' }} />{t.label}
+                      </button>
+                    ))}
+                  </div>
                 ))}
-                <span className="small text-muted">{tplManual ? '직접 고른 디자인' : '사진 색에 맞춰 자동으로 추천했어요'} · 자동 재생은 장당 1.5초</span>
+                <div className="small text-muted">{tplManual ? '직접 고른 디자인이에요' : '사진 색에 맞춰 자동으로 추천했어요'} · {ALBUM_TEMPLATES[tpl]?.desc} · 자동 재생은 장당 1.5초</div>
               </div>
-              <Slideshow title={title} subtitle={subtitle} items={items} template={tpl} />
+              <Slideshow pages={pages} rendering={rendering} />
             </div>
 
             <div className="jp-panel">
               <div className="jp-eyebrow mb-2">4. 내려받기 또는 삭제</div>
               <div className="d-flex flex-wrap gap-2">
-                <button type="button" className="btn btn-primary" onClick={download} disabled={busy !== ''}>
+                <button type="button" className="btn btn-primary" onClick={download} disabled={busy !== '' || rendering || !pages.length}>
                   {busy === 'pptx' ? <><span className="spinner-border spinner-border-sm me-2" />PPT 만드는 중…</> : <><i className="bi bi-download me-1" />PPT로 내려받기 (.pptx)</>}
                 </button>
                 <button type="button" className="btn btn-outline-sea" onClick={() => wipe('사진과 슬라이드를 모두 삭제했어요.')} disabled={busy !== ''}><i className="bi bi-trash me-1" />모두 삭제</button>

@@ -1,16 +1,26 @@
-// 미니앨범 도구 — 사진 줄이기(브라우저에서만 처리)와 PPTX 만들기. 사진은 서버나 Supabase 에 저장하지 않는다.
+// 미니앨범 도구 — 사진 줄이기(브라우저에서만 처리), 템플릿, PPT 내려받기. 사진은 서버나 Supabase 에 저장하지 않는다.
 
-// 미니앨범 템플릿 — 사진 색을 분석해 자동으로 추천하고, 사용자가 바꿀 수도 있다
+// 미니앨범 템플릿 — 앨범형 4가지(소장용 사진첩 느낌)와 시네마틱 4가지(사진을 가득 채움)
+//  · 사진 색을 분석해 자동으로 추천하고, 사용자가 직접 바꿀 수도 있다
 export const ALBUM_TEMPLATES = {
-  classic: { label: '클래식', desc: '차분한 어두운 배경', bg: '0F1A20', bg2: '1B2A33', bar: '000000', barAlpha: 35, accent: '93C5FD', text: 'FFFFFF', sub: 'BFD3DA' },
-  sunset: { label: '노을', desc: '따뜻한 주황빛', bg: '2B1308', bg2: '7C2D12', bar: '3B1D0A', barAlpha: 25, accent: 'FBBF24', text: 'FFF7ED', sub: 'FDE68A' },
-  ocean: { label: '바다', desc: '시원한 파란빛', bg: '0B2545', bg2: '13538A', bar: '0B2545', barAlpha: 25, accent: '7DD3FC', text: 'FFFFFF', sub: 'BAE6FD' },
-  forest: { label: '숲', desc: '싱그러운 초록빛', bg: '0F2A1D', bg2: '1F6B45', bar: '0F2A1D', barAlpha: 25, accent: '86EFAC', text: 'F0FDF4', sub: 'BBF7D0' },
+  polaroid: { kind: 'polaroid', group: 'album', label: '폴라로이드', desc: '크림색 종이에 폴라로이드 사진과 마스킹테이프', swatch: '#f0e4c8' },
+  film: { kind: 'film', group: 'album', label: '필름', desc: '필름 현상본 느낌의 어두운 컷 사진', swatch: '#1b1b1e' },
+  scrap: { kind: 'scrap', group: 'album', label: '스크랩북', desc: '크라프트지에 붙인 사진과 손글씨 라벨', swatch: '#c9a272' },
+  gallery: { kind: 'gallery', group: 'album', label: '갤러리 액자', desc: '전시장 벽에 걸린 액자와 작품 설명판', swatch: '#e6e3da' },
+  sunset: { kind: 'cinema', group: 'cinema', label: '노을', desc: '사진을 가득 채운 따뜻한 주황빛', swatch: '#F59E0B', bg: '2B1308', bg2: '7C2D12', bar: '3B1D0A', accent: 'FBBF24', text: 'FFF7ED', sub: 'FDE68A' },
+  ocean: { kind: 'cinema', group: 'cinema', label: '바다', desc: '사진을 가득 채운 시원한 파란빛', swatch: '#38BDF8', bg: '0B2545', bg2: '13538A', bar: '0B2545', accent: '7DD3FC', text: 'FFFFFF', sub: 'BAE6FD' },
+  forest: { kind: 'cinema', group: 'cinema', label: '숲', desc: '사진을 가득 채운 싱그러운 초록빛', swatch: '#4ADE80', bg: '0F2A1D', bg2: '1F6B45', bar: '0F2A1D', accent: '86EFAC', text: 'F0FDF4', sub: 'BBF7D0' },
+  classic: { kind: 'cinema', group: 'cinema', label: '클래식', desc: '사진을 가득 채운 차분한 어두운 배경', swatch: '#93C5FD', bg: '0F1A20', bg2: '1B2A33', bar: '000000', accent: '93C5FD', text: 'FFFFFF', sub: 'BFD3DA' },
 }
+export const templateOf = (id) => ({ id, ...(ALBUM_TEMPLATES[id] ?? ALBUM_TEMPLATES.polaroid) })
+
+// 사진의 색감 → 어울리는 앨범형 템플릿 (소장용 앨범 느낌을 기본으로 추천한다)
+const BY_MOOD = { sunset: 'polaroid', ocean: 'gallery', forest: 'scrap', classic: 'film' }
+export const templateForMood = (mood) => BY_MOOD[mood] ?? 'polaroid'
 
 const loadImg = (src) => new Promise((resolve, reject) => { const im = new Image(); im.onload = () => resolve(im); im.onerror = reject; im.src = src })
 
-// 사진들의 색을 보고 템플릿 추천: 따뜻한 색 → 노을, 파란색 → 바다, 초록색 → 숲, 그 밖 → 클래식
+// 사진들의 색을 보고 템플릿 추천: 따뜻한 색 → 폴라로이드, 파란색 → 갤러리 액자, 초록색 → 스크랩북, 그 밖 → 필름
 export async function recommendTemplate(dataUrls) {
   const votes = { classic: 0, sunset: 0, ocean: 0, forest: 0 }
   for (const url of dataUrls) {
@@ -42,7 +52,7 @@ export async function recommendTemplate(dataUrls) {
       else votes.classic += 1
     } catch { votes.classic += 0.5 }
   }
-  return Object.entries(votes).sort((a, b) => b[1] - a[1])[0][0]
+  return templateForMood(Object.entries(votes).sort((a, b) => b[1] - a[1])[0][0])
 }
 
 // 사진 파일 → 긴 변을 maxEdge 로 줄인 JPEG data URL (EXIF 회전 적용, 위치 정보 등 메타데이터는 남지 않는다)
@@ -67,45 +77,18 @@ export async function shrinkImage(file, maxEdge = 1600, quality = 0.82) {
   return { dataUrl: canvas.toDataURL('image/jpeg', quality), width: w, height: h }
 }
 
-// items: [{ dataUrl, width, height, caption }] → .pptx 파일을 내려받는다 (라이브러리는 이 버튼을 누를 때만 불러온다)
-export async function downloadAlbumPptx({ title, subtitle, items, fileName, template = 'classic' }) {
-  const T = ALBUM_TEMPLATES[template] ?? ALBUM_TEMPLATES.classic
+// pages: renderAlbumPages 결과([{ dataUrl, caption }]) → 한 장씩 슬라이드로 넣은 .pptx 를 내려받는다
+// 그림 그대로 들어가서 미리보기와 똑같이 보이고, 문구는 슬라이드 노트에도 넣어 둔다. (라이브러리는 이 버튼을 누를 때만 불러온다)
+export async function downloadAlbumPptx({ title, pages, fileName }) {
   const { default: PptxGenJS } = await import('pptxgenjs')
   const pptx = new PptxGenJS()
   pptx.layout = 'LAYOUT_WIDE' // 13.33 x 7.5 inch
   pptx.title = title
-  const W = 13.33
-  const H = 7.5
-  const FONT = 'Malgun Gothic'
-  const cover = (slide, it) => slide.addImage({ data: it.dataUrl, x: 0, y: 0, w: it.width / 96, h: it.height / 96, sizing: { type: 'cover', w: W, h: H } })
-
-  // 표지: 첫 사진을 어둡게 깔고 제목을 올린다
-  const s0 = pptx.addSlide()
-  s0.background = { color: T.bg }
-  if (items[0]) cover(s0, items[0])
-  s0.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: W, h: H, fill: { color: T.bg, transparency: 35 }, line: { color: T.bg, transparency: 100 } })
-  s0.addShape(pptx.ShapeType.rect, { x: W / 2 - 1.2, y: 2.25, w: 2.4, h: 0.06, fill: { color: T.accent }, line: { color: T.accent, transparency: 100 } })
-  s0.addText(title, { x: 0.8, y: 2.5, w: W - 1.6, h: 1.4, fontFace: FONT, fontSize: 48, bold: true, color: T.text, align: 'center' })
-  if (subtitle) s0.addText(subtitle, { x: 0.8, y: 4.0, w: W - 1.6, h: 0.8, fontFace: FONT, fontSize: 22, color: T.sub, align: 'center' })
-  s0.addText('제주픽 미니앨범', { x: 0.8, y: H - 1.0, w: W - 1.6, h: 0.5, fontFace: FONT, fontSize: 14, color: T.sub, align: 'center' })
-
-  // 사진 슬라이드: 사진을 가득 채우고 아래에 문구
-  items.forEach((it) => {
+  pages.forEach((pg) => {
     const s = pptx.addSlide()
     s.background = { color: '000000' }
-    cover(s, it)
-    if (it.caption) {
-      s.addShape(pptx.ShapeType.rect, { x: 0, y: H - 1.25, w: W, h: 1.25, fill: { color: T.bar, transparency: T.barAlpha }, line: { color: T.bar, transparency: 100 } })
-      s.addShape(pptx.ShapeType.rect, { x: 0, y: H - 1.25, w: W, h: 0.05, fill: { color: T.accent }, line: { color: T.accent, transparency: 100 } })
-      s.addText(it.caption, { x: 0.6, y: H - 1.2, w: W - 1.2, h: 1.15, fontFace: FONT, fontSize: 26, color: T.text, align: 'center', valign: 'middle' })
-    }
+    s.addImage({ data: pg.dataUrl, x: 0, y: 0, w: 13.33, h: 7.5 })
+    if (pg.caption) s.addNotes(pg.caption)
   })
-
-  // 마지막 장
-  const se = pptx.addSlide()
-  se.background = { color: T.bg }
-  se.addText('감사합니다', { x: 0.8, y: 2.8, w: W - 1.6, h: 1.0, fontFace: FONT, fontSize: 40, bold: true, color: T.text, align: 'center' })
-  se.addText(`제주픽으로 만든 미니앨범 · ${new Date().toLocaleDateString('ko-KR')}`, { x: 0.8, y: 4.0, w: W - 1.6, h: 0.6, fontFace: FONT, fontSize: 16, color: T.sub, align: 'center' })
-
   await pptx.writeFile({ fileName: fileName || '제주-미니앨범.pptx' })
 }
