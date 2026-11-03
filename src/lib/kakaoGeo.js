@@ -77,6 +77,23 @@ export function searchJejuPlaces(query, limit = 8) {
   })
 }
 
+// 좌표 → 주소 (도로명 주소 우선, 없으면 지번) | null — "내 위치" 같은 막연한 이름 대신 실제 주소를 쓰기 위해 사용
+export function reverseAddress(lat, lng) {
+  const la = Number(lat), ln = Number(lng)
+  if (!la || !ln) return Promise.resolve(null)
+  return memo(`r:${la.toFixed(4)},${ln.toFixed(4)}`, async () => {
+    const kakao = await loadKakao()
+    return new Promise((resolve) => {
+      const t = setTimeout(() => resolve(null), 5000)
+      new kakao.maps.services.Geocoder().coord2Address(ln, la, (data, status) => {
+        clearTimeout(t)
+        const d = status === kakao.maps.services.Status.OK ? data[0] : null
+        resolve(d ? (d.road_address?.address_name || d.address?.address_name || null) : null)
+      })
+    })
+  })
+}
+
 // 주소로 좌표 찾기 → { lat, lng } | null
 export function findAddress(address) {
   const clean = String(address ?? '').split(',')[0].replace(/\(.*?\)/g, '').trim() // "…삼성로 10, 호텔 (이도일동)" → "…삼성로 10"

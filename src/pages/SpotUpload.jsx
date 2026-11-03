@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { Container } from 'react-bootstrap'
 import { isSupabaseReady } from '../lib/supabase'
 import { shrinkImage } from '../lib/albumTools'
-import { searchJejuPlaces } from '../lib/kakaoGeo'
+import { reverseAddress, searchJejuPlaces } from '../lib/kakaoGeo'
 import { MAX_PER_USER, addSpot, dataUrlToBlob, listSpots, removeSpot } from '../lib/userSpots'
 import { inJejuArea, useMyLocation } from '../lib/useMyLocation'
 import { useAppStore } from '../store/useAppStore'
@@ -33,7 +33,14 @@ export default function SpotUpload() {
     .catch((e) => setErr(e.message)).finally(() => setLoading(false))
   useEffect(() => { if (user) reload(); else setLoading(false) }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { if (loc.me) setPlace({ name: '내 위치', lat: loc.me.lat, lng: loc.me.lng }) }, [loc.me])
+  // "내 위치로"를 누르면 좌표를 실제 주소로 바꿔 저장한다 (나중에 AI가 이 주소를 기준으로 코스를 만들 수 있게)
+  useEffect(() => {
+    if (!loc.me) return undefined
+    let alive = true
+    setPlace({ name: '주소를 찾는 중…', lat: loc.me.lat, lng: loc.me.lng })
+    reverseAddress(loc.me.lat, loc.me.lng).then((a) => { if (alive) setPlace({ name: a || `제주 (위도 ${loc.me.lat.toFixed(4)}, 경도 ${loc.me.lng.toFixed(4)})`, lat: loc.me.lat, lng: loc.me.lng }) })
+    return () => { alive = false }
+  }, [loc.me])
 
   const pick = async (file) => {
     setErr(''); setMsg('')
@@ -53,6 +60,7 @@ export default function SpotUpload() {
   const submit = async () => {
     setErr(''); setMsg('')
     if (!photo || !title.trim() || !place || !agree) return setErr('사진, 제목, 위치를 정하고 확인란에 체크해 주세요.')
+    if (place.name === '주소를 찾는 중…') return setErr('주소를 찾는 중이에요. 잠시 뒤 다시 눌러 주세요.')
     if (!inJejuArea(place)) return setErr('제주 안의 위치만 올릴 수 있어요.')
     setBusy(true)
     try {

@@ -4,7 +4,7 @@ import { Col, Container, Row } from 'react-bootstrap'
 import { fetchSpots, fetchWeather } from '../api/client'
 import { useAsync } from '../lib/useAsync'
 import { PHOTO_THEMES, themeLabel, themesOf } from '../data/photoThemes'
-import { mapToLink } from '../lib/kakaoGeo'
+import { mapToLink, reverseAddress } from '../lib/kakaoGeo'
 import { listSpots } from '../lib/userSpots'
 import { useAppStore } from '../store/useAppStore'
 import KakaoMap from '../components/KakaoMap'
@@ -43,21 +43,27 @@ function SpotCard({ spot, active, onSelect }) {
 
 // 여행자가 올린 사진 카드 (상단 "여행자" 태그를 눌렀을 때만 보인다)
 function TravelerCard({ photo, active, onSelect }) {
+  // 올릴 때 "내 위치"로 저장된 사진은 좌표로 실제 주소를 찾아서 쓴다 (AI가 "내 위치"를 보는 사람의 현재 위치로 오해하지 않게)
+  const vague = !photo.place_name || photo.place_name === '내 위치'
+  const addr = useAsync(() => (vague ? reverseAddress(photo.lat, photo.lng) : null), [photo.id])
+  const where = vague ? (addr.data ?? '') : photo.place_name
+  const coord = `위도 ${Number(photo.lat).toFixed(5)}, 경도 ${Number(photo.lng).toFixed(5)}`
+  const ask = `여행자가 "${photo.title}" 사진을 찍은 곳(${where ? `${where}, ` : ''}${coord}) 근처에서 반나절 코스를 만들어줘. 내 현재 위치가 아니라 이 사진이 찍힌 곳을 기준으로 해줘.`
   return (
     <div className={`jp-photo ${active ? 'jp-spot-on' : ''}`} onMouseEnter={onSelect}>
       <button type="button" className="jp-photo-img border-0 p-0 w-100" onClick={onSelect} aria-label={`${photo.title} 지도에서 보기`}>
         <img src={photo.url} alt={photo.title} loading="lazy" />
         <div className="jp-photo-hover">
           <div className="t">{photo.title}</div>
-          <div className="m"><span><i className="bi bi-geo-alt me-1" />{photo.place_name}</span></div>
+          <div className="m"><span><i className="bi bi-geo-alt me-1" />{where || '촬영 위치'}</span></div>
           <div className="k"><span>여행자</span></div>
         </div>
       </button>
       <div className="jp-photo-body">
         <div className="fw-semibold text-truncate">{photo.title}</div>
-        <div className="small text-muted text-truncate">{photo.caption || photo.place_name}</div>
+        <div className="small text-muted text-truncate">{photo.caption || where}</div>
         <div className="d-flex gap-2 mt-2">
-          <Link className="btn btn-sm btn-primary flex-grow-1" to={`/agent?q=${encodeURIComponent(`${photo.place_name || photo.title} 근처 코스를 알려줘`)}`}><i className="bi bi-stars me-1" />AI 코스</Link>
+          <Link className="btn btn-sm btn-primary flex-grow-1" to={`/agent?q=${encodeURIComponent(ask)}`}><i className="bi bi-stars me-1" />AI 코스</Link>
           <a className="btn btn-sm btn-outline-sea" target="_blank" rel="noreferrer" href={mapToLink(photo.title, photo.lat, photo.lng)} aria-label="길찾기"><i className="bi bi-signpost" /></a>
         </div>
       </div>
