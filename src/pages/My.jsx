@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Col, Container, Row } from 'react-bootstrap'
 import { useAppStore } from '../store/useAppStore'
 import { displayName } from '../lib/format'
 import { isSupabaseReady } from '../lib/supabase'
+import { listSpots, removeSpot } from '../lib/userSpots'
 import KakaoMap from '../components/KakaoMap'
 import PageBanner from '../components/PageBanner'
 import ShareButton from '../components/ShareButton'
@@ -67,7 +68,23 @@ export default function My() {
   const favLoading = useAppStore((s) => s.favLoading)
   const routes = useAppStore((s) => s.routes)
   const toggle = useAppStore((s) => s.toggleFavorite)
-  const [tab, setTab] = useState('wish') // 'wish' | 'routes'
+  const [tab, setTab] = useState('wish') // 'wish' | 'routes' | 'photos'
+
+  // 내가 포토 스팟에 올린 사진 (Supabase user_spots) — 여기서 완전히 삭제할 수 있다
+  const [photos, setPhotos] = useState([])
+  const [photosLoading, setPhotosLoading] = useState(true)
+  const [photoErr, setPhotoErr] = useState('')
+  const [photoMsg, setPhotoMsg] = useState('')
+  const loadPhotos = () => listSpots()
+    .then((all) => setPhotos(all.filter((p) => p.user_id === user?.id)))
+    .catch(() => setPhotos([])) // 테이블을 아직 안 만들었으면 조용히 비워 둔다
+    .finally(() => setPhotosLoading(false))
+  useEffect(() => { if (user) loadPhotos(); else setPhotosLoading(false) }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  const deletePhoto = async (p) => {
+    if (!window.confirm(`"${p.title}" 사진을 포토 스팟에서 완전히 삭제할까요? (사진 파일도 함께 지워져요)`)) return
+    setPhotoErr(''); setPhotoMsg('')
+    try { await removeSpot(p); setPhotoMsg('삭제했어요. 사진 파일도 함께 지웠어요.'); await loadPhotos() } catch (e) { setPhotoErr(e.message) }
+  }
 
   // AI 코스에 넘길 위시리스트: 기본은 앞에서 8곳, 카드의 체크박스로 빼거나 다시 넣는다
   const [off, setOff] = useState(() => new Set())
@@ -100,13 +117,14 @@ export default function My() {
   return (
     <>
     <PageBanner img="/images/jeju-chairs.jpg" pos="50% 55%" eyebrow="내 보관함" title={`${name}님의 여행`}
-      sub={`위시리스트 ${favorites.length}개 · 저장한 경로 ${routes.length}개`}>
+      sub={`위시리스트 ${favorites.length}개 · 저장한 경로 ${routes.length}개 · 올린 사진 ${photos.length}장`}>
       <Link to={planLink} className="btn btn-light"><i className="bi bi-stars me-1" />{chosen.length ? `위시리스트 ${chosen.length}곳으로 코스 만들기` : 'AI에게 코스 물어보기'}</Link>
     </PageBanner>
     <Container className="pt-4">
-      <div className="jp-tabs" style={{ maxWidth: 360 }}>
+      <div className="jp-tabs" style={{ maxWidth: 520 }}>
         <button type="button" className={`jp-tab ${tab === 'wish' ? 'on' : ''}`} onClick={() => setTab('wish')}>위시리스트</button>
         <button type="button" className={`jp-tab ${tab === 'routes' ? 'on' : ''}`} onClick={() => setTab('routes')}>내 경로</button>
+        <button type="button" className={`jp-tab ${tab === 'photos' ? 'on' : ''}`} onClick={() => setTab('photos')}>내 사진 {photos.length || ''}</button>
       </div>
 
       {tab === 'wish' ? (
@@ -137,6 +155,34 @@ export default function My() {
                       disabled={!chosenIds.has(f.id) && chosen.length >= MAX_PICK} aria-label={`${f.title} 코스에 넣기`} />
                     <span className="text-truncate">{f.title}</span>
                   </label>
+                </div>
+              </Col>
+            ))}
+          </Row>
+        </>
+      ) : tab === 'photos' ? (
+        <>
+          <div className="d-flex flex-wrap align-items-center gap-2 mb-3">
+            <span className="small text-muted">포토 스팟에 올린 내 사진이에요. 삭제하면 사진 파일도 함께 지워져요.</span>
+            <Link to="/spots/upload" className="btn btn-sm btn-primary ms-auto"><i className="bi bi-cloud-arrow-up me-1" />사진 올리기</Link>
+          </div>
+          {photoErr && <div className="alert alert-warning py-2">{photoErr}</div>}
+          {photoMsg && <div className="alert alert-success py-2">{photoMsg}</div>}
+          <Status loading={photosLoading} empty={!photosLoading && !photos.length} emptyText="아직 올린 사진이 없어요. '사진 올리기'로 포토 스팟에 내 사진을 올려 보세요." />
+          <Row xs={1} sm={2} lg={4} className="g-3">
+            {photos.map((p) => (
+              <Col key={p.id}>
+                <div className="jp-photo">
+                  <div className="jp-photo-img"><img src={p.url} alt={p.title} loading="lazy" /><span className="jp-chip">내 사진</span></div>
+                  <div className="jp-photo-body">
+                    <div className="fw-semibold text-truncate">{p.title}</div>
+                    <div className="small text-muted text-truncate">{p.place_name}</div>
+                    <div className="small text-muted">{dateOf(p.created_at)}</div>
+                    <div className="d-flex gap-2 mt-2">
+                      <Link className="btn btn-sm btn-outline-sea flex-grow-1" to="/spots"><i className="bi bi-camera me-1" />포토 스팟에서 보기</Link>
+                      <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => deletePhoto(p)} aria-label={`${p.title} 삭제`}><i className="bi bi-trash" /></button>
+                    </div>
+                  </div>
                 </div>
               </Col>
             ))}
